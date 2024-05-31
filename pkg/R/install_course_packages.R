@@ -1,0 +1,36 @@
+#' @title install_course_packages
+install_course_packages <- function() {
+  utils::install.packages(
+    c(
+      "arrow",
+      "available",
+      "bench",
+      "boot",
+      "devtools",
+      "duckplyr",
+      "errorist",
+      "here",
+      "htmlwidgets",
+      "janitor",
+      "jsonlite",
+      "httr2",
+      "knitr",
+      "leaflet",
+      "lintr",
+      "lobstr",
+      "logr",
+      "pkgdown",
+      "profvis",
+      "R6",
+      "renv",
+      "rlang",
+      "roxygen2",
+      "S7",
+      "shiny",
+      "sloop",
+      "styler",
+      "testthat",
+      "validate"
+    )
+  )
+}

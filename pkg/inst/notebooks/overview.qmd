@@ -1,0 +1,15 @@
+---
+title: "Advanced R---Overview"
+---
+
+The Advanced R course comprises the following modules.
+
+1. [Coding conventions](https://decisionmechanics.quarto.pub/advanced-r-coding-conventions)
+2. [Functional programming](https://decisionmechanics.quarto.pub/advanced-r-functional-programming)
+3. [Object-oriented programming](https://decisionmechanics.quarto.pub/advanced-r-oop)
+4. [Debugging](https://decisionmechanics.quarto.pub/advanced-r-debugging)
+5. [Testing](https://decisionmechanics.quarto.pub/advanced-r-testing)
+6. [Efficient code](https://decisionmechanics.quarto.pub/advanced-r-efficient-code)
+7. [Reporting](https://decisionmechanics.quarto.pub/advanced-r-reporting)
+8. [Packages](https://decisionmechanics.quarto.pub/advanced-r-packages)
+9. [Reproducible workflows](https://decisionmechanics.quarto.pub/advanced-r-reproducible-workflows)

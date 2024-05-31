@@ -1,0 +1,31 @@
+---
+title: "Typst Document"
+author: "Andrew Tait"
+format:
+  typst:
+    papersize: a4
+    margin:
+      x: 1cm
+      y: 1cm
+    columns: 2
+---
+
+# Lorem Ipsum
+
+## Section 1
+
+Lorem ipsum dolor sit amet, consectetur adipiscing elit. Aliquam volutpat sed nunc et mattis. Sed tincidunt ornare bibendum. Sed hendrerit suscipit rhoncus. Nunc sit amet erat sit amet mauris vestibulum scelerisque. Mauris ornare sem id mauris ultrices, nec vehicula dui pharetra. Morbi vitae magna laoreet, laoreet erat eget, eleifend ligula. Integer ullamcorper ligula ac ligula lacinia tempus. Morbi ultricies neque eget congue elementum. Class aptent taciti sociosqu ad litora torquent per conubia nostra, per inceptos himenaeos. Sed vitae euismod sapien, eget dignissim nisi. Praesent tristique sagittis felis nec feugiat. Integer et lacus libero. Class aptent taciti sociosqu ad litora torquent per conubia nostra, per inceptos himenaeos. Integer et nisi consectetur, interdum lorem vel, ornare nunc. Nam elementum justo dui, efficitur viverra sapien dignissim ut.
+
+Pellentesque suscipit luctus faucibus. Mauris fermentum, nisi ac cursus maximus, ligula ex laoreet urna, in placerat est libero eget metus. In ipsum erat, ornare mollis dolor maximus, sodales ultricies metus. Quisque eu diam efficitur, hendrerit tellus sed, malesuada elit. Nulla viverra placerat nisl quis pellentesque. Nulla in volutpat turpis. Maecenas commodo quam arcu, blandit commodo enim mollis et. Duis et ante vel felis sodales consectetur. Pellentesque ullamcorper arcu id metus consectetur convallis. Class aptent taciti sociosqu ad litora torquent per conubia nostra, per inceptos himenaeos. Donec a tempus odio, eget commodo nulla.
+
+Vivamus fermentum est ut arcu mattis dapibus. In nec rhoncus ex. Nulla eget placerat leo. Ut pulvinar eros sit amet turpis rhoncus eleifend. Vivamus convallis magna sit amet ex pharetra bibendum. Nullam laoreet metus eu consequat consequat. Aenean lacinia ipsum sed tempus condimentum. Integer ligula nulla, iaculis eget sem sed, volutpat porttitor elit. Integer blandit dui et ante tincidunt, vel viverra ligula imperdiet. Pellentesque nibh neque, tempor lacinia imperdiet sed, tristique nec sem. Suspendisse posuere vulputate dolor, porttitor aliquet lorem condimentum at.
+
+## Section 2
+
+Quisque pretium vel justo nec vestibulum. Quisque tincidunt ligula in nibh gravida dignissim. Vestibulum a nisi dui. Mauris viverra nibh turpis, quis blandit justo egestas sed. Integer vel quam massa. Sed non magna ultrices, consectetur magna a, vestibulum diam. Proin malesuada euismod arcu ac rutrum. Integer euismod nisi et scelerisque congue.
+
+Nam velit ligula, consequat id fermentum vel, auctor eget nulla. Quisque iaculis tempor massa, in posuere libero interdum a. Suspendisse vel semper turpis. Ut dolor lacus, tincidunt id nunc quis, egestas mollis sapien. Maecenas a elit suscipit, tincidunt massa a, facilisis lorem. Nulla in ultrices metus, sit amet volutpat velit. Mauris non purus non purus consectetur fermentum. Nam at fermentum nunc, a semper diam. Nulla blandit massa sit amet magna condimentum, sit amet efficitur augue luctus. Phasellus pharetra tempor tincidunt. Praesent tincidunt sit amet magna et fermentum. Maecenas ut tempus augue. Nunc eget eleifend libero, fringilla ultrices augue. In tincidunt eget leo at faucibus.
+
+Maecenas massa neque, laoreet id euismod sed, malesuada varius ipsum. Vestibulum scelerisque convallis varius. Donec interdum quam massa. Lorem ipsum dolor sit amet, consectetur adipiscing elit. In ante felis, fermentum sed dignissim id, porttitor ut tellus. Donec cursus lacus et leo condimentum commodo. Sed id dolor lobortis, sodales lorem sit amet, viverra dolor. Aenean tincidunt accumsan leo vitae venenatis. Vestibulum ante ipsum primis in faucibus orci luctus et ultrices posuere cubilia curae;
+
+Curabitur in lorem sit amet tortor placerat finibus eget et neque. Donec eu dolor facilisis, porta metus vitae, tincidunt nisi. Integer sed rhoncus dolor. Phasellus sit amet elit eget est iaculis facilisis. Vivamus elit nisi, feugiat quis felis quis, efficitur finibus ante. Fusce cursus euismod turpis condimentum aliquam. Aliquam vehicula auctor ultrices. Aliquam a varius arcu. Duis nec commodo turpis, vel fermentum enim. Suspendisse et eleifend augue, interdum varius odio. Ut vitae felis euismod, fringilla purus quis, tempus massa. Sed congue augue vel velit viverra ultrices. In in scelerisque erat, in sagittis libero. Duis tincidunt massa quis elit bibendum consequat.

@@ -1,0 +1,6 @@
+.quarto/
+*.graffle
+*.docx
+/outline.md
+/pre-course-setup.md
+/extras

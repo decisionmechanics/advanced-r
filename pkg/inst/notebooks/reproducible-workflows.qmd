@@ -1,0 +1,409 @@
+---
+title: "Reproducible workflows"
+---
+
+Errors in research papers are a [hot topic](https://retractionwatch.com). It's very easy to make innocent, but embarrassing, mistakes when you are working with lots of data that is constantly changing. We need to draw on all the tools available to help us manage the complexity.
+
+In this module, we learn how to use DevOps tools to promote reproducibility.
+
+## Challenges in reproducing results
+
+In order to accurately audit your results, others may have to:
+
+- Have the same version of R installed
+- Have the same version of RStudio installed
+- Have the same _libraries_ installed
+- Have the same _versions_ of the libraries installed
+- Be using the same OS (type and version)
+- Have the same OS configuration
+- Be using the same versions of all the scripts
+- Be using the same version of the datasets
+- Run the scripts in the correct order
+
+Of course, it's _usually_ the case that some of these things are less important than others. For instance, if you are using version 4.x of R, it _shouldn't_ matter what minor version you are using. But there are no guarantees. It's all on you.
+
+It's _very_ easy, however, to end up using out-of-date data, or the wrong script. And it's easy to introduce a mistake in a script when you are trying out different models and approaches.
+
+There are three categories of tools that can help us do better.
+
+- Version control
+- Dependency/Configuration management
+- Automation
+
+## Using Git to manage scripts and data
+
+Version control is an _essential_ part of any formal data science project---even if there's only one data scientist working on the project. Data science work is more exploratory than most software development activities, so it's very easy to end up introducing errors, or losing important content.
+
+Git is the leading source control control system. Its focus is on allowing developers to work independently and, at a later date, merge their work into the wider project. It's a powerful system, but notoriously difficult for newcomers. 
+
+RStudio has support for Git. You can also use it via the command-line. RStudio's Git integration isn't particularly sophisticated, so you will be required to use the CLI (or a more sophisticated GUI tool) for more than the basics.
+
+Git stores all your files locally. To make them available to others, you need to push them to a remote repository, like GitHub. Git is an open source _tool_. GitHub is a commercial _service_.
+
+To place a project under source control, use **Tools** > **Version Control** > **Project Setup...**. 
+
+![Version control setup](images/version-control.png)
+Select "Git" as your version control system and confirm that you want to create a new repository.
+
+![Git initialisation](images/git-init.png)
+
+You can do this on via the CLI (from the project root folder).
+
+```bash
+git init
+```
+
+If you look in your project foot, you will now see a `.git` folder. You will also see a `.gitignore` file containing the following.
+
+```
+/.quarto/
+.Rproj.user
+```
+
+A `.gitignore` file is included when you create a new package in RStudio. It includes things that Git should _not_ track, such as:
+
+- User specific settings
+- Third-party libraries
+- Passwords/Keys
+- Temp folders
+- Large files
+
+If you open the version control menu in RStudio you should now have a number of basic Git commands available.
+
+![Git commands](images/git-commands.png)
+Using these commands, we can:
+
+- Look at our recent changes to the current file (`git diff`)
+- Review the log of our changes to the current file (`git log`)
+- Revert our current file to a previous version (`git revert`)
+- Commit your changes (`git commit`)
+- Pull remote branches (`git pull`)
+- Push branches to remote (`git pull`)
+- Review the log of project changes (`git log`)
+- Update the project configuration
+
+You will also notice that you now have a Git pane.
+
+![Git pane](images/git-pane.png)
+This is where you tend to conduct most of your Git activities in RStudio.
+
+In Git, your files can be in one of four states.
+
+- Modified
+- Staged
+- Committed
+- Pushed
+
+When you edit a file, it is modified. You can then choose to stage it---telling Git that it will be part of a future commit. Then, when you have staged one of more files, you commit them to the repository. Finally, and optionally, you may decide to push them to a remote repository, so they can be shared with others.
+
+The staging step allows us to form an atomic commit. Commits should, ideally, be about a single thing (e.g. bug fix, feature), If we have made a number of changes to our project, we may want our commit to only include a subset of those modified files. We can stage just those files and then commit them.
+
+When you commit staged files to the repository, you should describe the commit. The description should explain what would happen if the developer applied this commit to their code base. For example,
+
+> Only include exports in the summary
+
+Bad commit messages include:
+
+- `Fixed bug`
+- `Made changes`
+
+::: {.discuss}
+**Discussion**: What would be a good convention for your Git commit messages?
+:::
+
+You can stage and commit files through RStudio.
+
+![Git commit](images/git-commit.png)
+
+This could also be done via the CLI.
+
+```bash
+git add README.md
+git commit -m "Create file that describes the package"
+```
+
+::: {.callout-tip}
+Lint and format your code before you commit it. You'll make less enemies.
+:::
+
+If you want to work with a remote repository, such as GitHub, the easiest way is to do it when you initially create your project.
+
+![Git clone](images/git-clone.png)
+
+This assumes that the repository is already created on GitHub.
+
+You can do this from the CLI using `git clone`.
+
+If you have an _existing_ R project, I recommend creating a remote repository on Gitub and following the instructions there for configuring it with an existing project.
+
+You can also configure Git using `usethis::use_git()`, but it's generally easier just to follow GitHub's instructions.
+
+Once you have a remote repository configured, you can push to, and pull from, the repository to share your code with others.
+
+When collaborating on a project with multiple people, you generally want to avoid making changes that disrupt their work. Once way to do this is to use what's called a "feature branch" strategy.
+
+In Git, you commit your work on branches. The initial branch is usually the master (or main) branch. You can create new (feature) branches, and work on those, leaving the main branch untouched. When your work is complete, you can merge your feature branch into the main branch.
+
+![Git branches](images/git-branches.png)
+
+To create and switch branches using the CLI, you can use:
+
+```bash
+git switch -c feat/reproducible-workflow
+git switch main
+```
+
+If you want to merge branches, you have to use the CLI.
+
+```bash
+git switch main
+git merge feat/reproducible-workflow
+```
+
+### Exercise: Place a project under source control {.exercise}
+
+- Create a new project (creating a Git repository)
+- Change some files and stage/commit them
+- Create a new branch
+- Make some changes and commit to the new branch
+- Merge the new branch into the main branch
+- Create a new project by cloning the course repository
+
+## Placing large datasets under source control
+
+GitHub will warn you if you attempt to commit a file that is larger than 50Mb. Large files can cause performance issues.
+
+Some fields, such as data science and game development, tend to have a lot of large files. Two ways of working effectively with Git and large files are [Git Large File Storage](https://git-lfs.com) (Git LFS) and [Data Version Control](https://dvc.org) (DVC).
+
+Git LFS is a more general solution. DVC is designed around the needs of those who work with large datasets.
+
+RStudio doesn't provide direct support for versioning large files, so you will be using the CLI or third-party tools for this.
+
+Git LFS works by storing _pointers_ (small link files) to your large files in your Git repository. The files themselves are stored outside your git repository (in a local Git LFS cache when working locally).
+
+To use Git LFS you first need to install it. Once it's installed, you can confirm it's working using:
+
+```bash
+git lfs install
+```
+
+In your repository, you can tell Git LFS to track certain files as follows.
+
+```bash
+git lfs track "*.parquet"
+```
+
+This will generate a `.gitattributes` file. Add that to your Git repository as usual.
+
+Now you can just add and commit these large files as usual.
+
+```bash
+git add trade-in-goods.parquet
+git commit -m "Add trade in goods dataset"
+git push
+```
+
+::: {.callout-important}
+Your remote Git repository service must have support for Git LFS if you are pushing and pulling files.
+:::
+
+DVC uses storage buckets, such as S3, to store large files. It adds a layer over Git so that you can continue to use Git commands to manage your repository.
+
+One wrinkle for R users, is that the recommended way of installing it is via the Python package manager (pip).
+
+```bash
+pip install dvc
+```
+
+Depending on your remote storage solution, you may need to install additional dependencies (e.g. `dvc-s3`, `dvc-azure`, `dvc-gdrive`).
+
+```bash
+pip install dvc[s3]
+```
+
+To prepare an existing Git repository to use DVC, initialise it from within the project folder.
+
+```bash
+dvc init
+```
+
+This will add a `.dvc` folder. You should commit it and its contents.
+
+```bash
+git commit -m "Add support for large files via DVC"
+```
+
+Then start adding files you wish to track.
+
+```bash
+dvc add trade-in-goods.parquet
+```
+
+Once that's done, you can start working with the files using normal Git commands.
+
+DVC has support for versioning experiments, which is outside the scope of what we cover in this module.
+
+## Managing dependencies using renv
+
+[`renv`](https://rstudio.github.io/renv/) (Reproducible Environment) is an R package that:
+
+- Creates a project-specific library
+- Maintains a list of your dependencies
+
+This prevents your project from being contaminated by global package upgrades/downgrades.
+
+`renv` replaces the older `packrat` package. If you have used `packrat` before, `renv` provides a migration function.
+
+To use `renv` in a project we first need to initialize it. We can do this when we create a new project.
+
+![Initialize renv when creating a project](images/initialize-renv.png)
+
+We can also add `renv` to existing projects.
+
+![Add renv to an existing project](images/add-renv.png)
+
+Alternatively, you can initialise it manually.
+
+```{r}
+#| eval: false
+renv::activate()
+```
+
+This creates a `.Rprofile` file that activates the environment when the project is opened.
+
+```r
+source("renv/activate.R")
+```
+
+It also generates a `renv` folder that stores files associate with the environment. Any packages we install will now be stored in `renv/library`, isolating them from the global library cache.
+
+We can now take a snapshot of the packages we are using.
+
+```r
+renv::snapshot()
+```
+
+This creates a `renv.lock` file that documents all the packages we are _using_. If we have a package _installed_, but don't _use_ it, it will _not_ be included in `renv.lock`.
+
+The `renv.lock` file can be used to restore your dependencies. It should be committed to Git. To restore dependencies from a lock file use `renv::restore()`.
+
+### Exercise: Create a reproducible environment {.exercise}
+
+- Create a new project with `renv` enabled
+- Install a couple of packages and use a small script that uses them
+- Take a snapshot of the project's dependencies
+- Create a _new_ project (with `renv` enabled)
+- Copy the lock file and the script from the previous project
+- Restore the environment in the new project
+- Run the script
+- Check the the libraries are in the `renv/library` folder of the new project
+
+## Isolating environments using Docker
+
+`renv` has limitations. For one, it can't capture/isolate system dependencies.
+
+Docker is an open-source platform that automates application deployment within lightweight, portable containers. Containers bundle software with its dependencies, ensuring consistency across environments. They don't include a complete OS---they share a kernel.
+
+Containers dependent on features within Linux. If you use Docker on Windows or macOS, you will be running your containers in a dedicated Linux virtual machine.
+
+Your container can contain its own version of R, RStudio, packages, system libraries, etc. This provides a level of isolation way beyond what `renv` can offer.
+
+To create a Docker container, we must first have an image. You can generate multiple containers from an image. The container is an executing process. The image is a read-only template containing the libraries, files, etc. required by the container.
+
+[The Rocker Project](https://rocker-project.org) maintains R Docker images. They have a range of options, from those containing just R, to ones that bundle RStudio Server, Shiny and the tidyverse packages.
+
+::: {.callout-note}
+RStudio Server is a web-based version of RStudio. This allows it to be accessed from outside a container.
+:::
+
+To obtain one of these images, you pull it from the image repository.
+
+```bash
+docker pull rocker/tidyverse
+```
+
+The image can then be used to spin up a container.
+
+```bash
+docker run --rm -ti -p 8787:8787 rocker/rstudio
+```
+
+This will make an RStudio Server instance available at `http://localhost:8787`. You must log in. The user is `rstudio` and the password will be shown in your terminal.
+
+You can use the Rocker Project images as the base for your own custom images. This allows you to pre-install any libraries and packages you use, and to configure R Studio server. You specify your image using a `Dockerfile`.
+
+To build an image use the following.
+
+```bash
+docker build -t advancedr .
+```
+
+A Docker Compose file (`docker-compose.yml`) can be specify container parameters.
+
+```bash
+services:
+  advancedr:
+    build: .
+    ports:
+      - "8787:8787"
+    environment:
+      - PASSWORD=pw
+    volumes:
+      - ~/projects:/data:delegated
+    container_name: advancedr
+```
+
+Containers can now be launched using:
+
+```bash
+docker-compose up -d
+```
+
+To kill the container use:
+
+```bash
+docker-compose down
+```
+
+We can list all the running Docker containers using:
+
+```bash
+docker ps -a
+```
+
+::: {.callout-important}
+Note that any data you create in a container will be destroyed with the container.
+:::
+
+To retain your data, mount a volume in the container and place all your files in the volume.
+
+```bash
+docker run --rm -ti -p 8787:8787 -v $HOME/projects/:/data:delegated rocker/rstudio
+```
+
+RStudio Server will now see your `~/projects` as `data`
+
+### Exercise: Spin up an R container {.exercise}
+
+Run a Rocker Project container using:
+
+```bash
+docker run --rm -ti -p 8787:8787 rocker/rstudio
+```
+
+The image will be pulled automatically if you don't have it locally.
+
+Go to `http://localhost:8787` and log in as user `rstudio`. Get the password from your terminal.
+
+Install packages and create a script.
+
+What you are finished, use `docker ps -a` to get your container ID. Stop and destroy it using:
+
+```bash
+docker stop <container ID>
+docker rm <container ID>
+```
+
+## Summary
+
+In this module, we learned how to use DevOps tools to promote reproducibility.

@@ -1,0 +1,47 @@
+---
+title: "Trade in goods"
+author: "Andrew Tait"
+date: "2024-01-01"
+output:
+  html_document:
+    toc: true
+    theme:
+      bootswatch: vapor
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+```{r initialize}
+trade_in_goods_df <- arrow::read_parquet(here::here("data-raw/trade-in-goods.parquet"))
+n_rows <- 5
+```
+
+## View a random sample.
+
+The following table show `r n_rows` random exports from the dataset.
+
+```{r table}
+trade_in_goods_df |>
+  dplyr::filter(flow == "Exports") |> 
+  dplyr::select(country_name, year, value) |> 
+  dplyr::sample_n(size = n_rows) |> 
+  knitr::kable()
+```
+
+## Exports over the years
+
+Let's look at the growth in exports over the years.
+
+```{r chart, fig.cap="Exports/Year"}
+trade_in_goods_df |>
+  dplyr::filter(flow == "Exports") |>
+  dplyr::count(year, wt = value, name = "value") |>
+  dplyr::arrange(year) |>
+  ggplot2::ggplot(ggplot2::aes(x = year, y = value)) +
+  ggplot2::geom_col() +
+  ggplot2::theme(
+    axis.title = ggplot2::element_blank()
+  )
+```

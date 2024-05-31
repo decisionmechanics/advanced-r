@@ -1,0 +1,358 @@
+---
+title: "Debugging"
+---
+
+Developers spend much more time debugging code than writing code, so it's important to master the tools you have, to locate and fix bugs.
+
+Running code with errors can start to destabilise the Quarto document, so it's recommended that you run code in a separate script file.
+
+## Finding and fixing errors
+
+If you have an error that results in R producing a (possibly cryptic) message, then the first thing to do is **search the web** for that error. Remove any variables, column names, etc that are specific to your use.
+
+If you are very lazy, you can use the `errorist` library.
+
+```r
+errorist::enable_errorist()
+
+mtcars |> 
+  dplyr::sort(mpg)
+  
+errorist::disable_errorist()
+```
+If the web search doesn't help, **create a minimal, repeatable example**. This will help you to narrow down the cause of the problem. This will be required if you end up asking for help from a third-party (e.g. in a forum).
+
+Consider writing a unit test that documents the error.
+
+Once you have the error isolated and repeatable, you can efficiently start working on a fix. Don't hack at the code. Try to come up with theories about what might be wrong and try them out. Run your minimal example/unit test and see if the code now works. If not, back up and come up with a new idea.
+
+## traceback
+
+R will tell us the line of code that resulted in the error. The line of code that resulted in the error isn't always where the problem lies, but it's a good place to start.
+
+RStudio displays a "Show Traceback" button that displays the call stack that led to the error (see @fig-show-traceback).
+
+```r
+d <- function(x, y) x + y
+c <- function(x, y) d(x, y)
+b <- function(x, y) c(x, y)
+a <- function(x, y) b(x, y)
+
+a("one", 2)
+```
+
+![Functional style](images/show-traceback.png){#fig-show-traceback}
+
+We can enrich base R errors, warnings and messages, so we get the same quality of messages as we do when using the tidyverse packages.
+
+```{r enrich_errors}
+rlang::global_entrace()
+```
+
+This allows us to use `rlang::last_error` and `rlang::last_trace` to determine what went wrong.
+
+```{r last_error}
+#| eval: false
+dplyr::select(mtcars, "model")
+
+rlang::last_eror()
+
+rlang::last_trace()
+rlang::last_trace(drop = FALSE)
+```
+
+Note that lazy evaluation can make your call stack more complicated. The impact of the offending code code can occur far from where it was defined.
+
+```r
+d <- function(x) x
+c <- function(x) d(x)
+b <- function(x) c(x)
+a <- function(x) b(x)
+
+a(stop("Danger!"))
+```
+
+### Exercise: Examine errors {.exercise}
+
+Enable enriched errors.
+
+Add a `stop("I'm broken...")` call to some code, run it and review the error and stack trace. 
+
+## Using breakpoints in RStudio
+
+We can set breakpoints in R by clicking in the Code pane gutter, to the left of the line numbers. You will see an empty circle indicating that the breakpoint has been set, but is not yet active. Use the **Source** button at the top-right of the Code pane to reload your script. The breakpoint should now be indicated using a solid, red circle.
+
+Can you set breakpoints on any line? If not, which lines can you _not_ set breakponts on?
+
+You can now call your code and it will stop when it hits the breakpoint. This will enter browsing mode (indicated by `Browse[1]` prompt in the Console pane). You can examine the current state of the variables, and the active environments, in the Environment pane. The top of the Console pane will now show buttons that all you to step through the code a statement at a time. Click the **Stop** button here to exit browsing mode.
+
+The buttons enter commands at the browsing prompt. You can also use these commands directly. The <Enter> key is an alternative to  `n` (execute next statement).
+
+### Exercise: Step through code {.exercise}
+
+Open the script in `R/factorial.R`. Set a breakpoint on the first statement in the `factorial_recursive` function (line #2).
+
+Click the **Source** button to activate the breakpoint.
+
+Call `factorial_recursive()`. RStudio should stop on that line and enter browsing mode.
+
+Examine the Environment pane. Use the Console pane to step through the code line-by-line. When the code reaches your breakpoint line again, via the recursive calls, look at the value of `n` in the Environment pane. Can you explain it?
+
+Press the **Continue** button. The code will run until it reaches the next breakpoint. Keep pressing continue, to go through all the recursive calls. When you reach the final one, the code has completed and RStudio will automatically exit browsing mode.
+
+If you set the **Debug** > **On Error** menu state to **Break in Code**, RStudio will automatic enter browsing mode on encountering an error, with the current line being the one that threw the error.
+
+## R debugger
+
+You can enter browsing mode by call `browser()`. This is effectively creating a dynamic breakpoint. This gives you a lot of control and, unlike using the RStudio breakpoints, it doesn't ignore them occasionally. The downside is that you have to remember to remove them from your code.
+
+As `browser()` is just a function call, it's easy to do things like setting conditional breakpoints.
+
+```r
+if (n == 1) {
+  browser()
+}
+```
+
+You can also set "break on error" via code.
+
+```{r break_on_error}
+# set error = NULL to reset
+options(error = recover)
+```
+
+You can set a breakpoint on first line of a function using `debug`.
+
+```r
+debug(factorial_recursive)
+
+factorial_recursive(6)
+
+undebug(factorial_recursive)
+```
+
+`debugonce` is similar to `debug`, but disables the breakpoint after it's hit for the first time.
+
+```r
+debugonce(factorial_recursive)
+
+factorial_recursive(6)
+```
+
+If we don't want to break on the first line of a function, we can target a specific line in a file, using `utils::setBreakpoint`. The target file should be sourced before calling `setBreakpoint`.
+
+```r
+utils::setBreakpoint("factorial.R", 14)
+
+factorial_procedural(6)
+
+utils::setBreakpoint("factorial.R", 14, clear = TRUE)
+```
+
+A red dot will appear next to the target function in the Environment pane.
+
+### Exercise: Explore code using `debug` {.exercise}
+
+Open the script in `R/factorial.R`. Set a breakpoint on the first statement in the `factorial_recursive` function using `debug`. Run the code and step through it as before.
+
+## Non-interactive debugging
+
+It's much harder to debug code when you can't load it into the IDE and work with it. For example, the code may be running on a server. If the code is breaking on the server, but not in your local development environment, you will have to resort to non-interactive debugging.
+
+The classic approach is print debugging---using `cat` or `print` to log information. This assumes that your environment allows you to monitor/review stdout/stderr in some manner (e.g. Docker logs).
+
+Logging packages allow you to log entries to a number of different locations, including files. [`logr`](https://logr.r-sassy.org/index.html) is a relatively simple logging package.
+
+```r
+log_file_path <- file.path(tempdir(), "test.log")
+
+log_file <- logr::log_open(log_file_path)
+
+logr::log_print("First five cars")
+
+first_cars <- mtcars |> head(n = 5)
+
+logr::log_print(first_cars)
+
+logr::log_close()
+
+writeLines(readLines(log_file))
+```
+
+Logging can be disabled globally.
+
+```
+options("logr.on" = FALSE)
+```
+
+Saving data to RDS files is another way to debug remote environments. You can manually create a list of all the data you need, before dumping it to a file use [`saveRDS`](https://rdrr.io/r/base/readRDS.html). You can then move that file to a development environment and rehydrate the state.
+
+The [`utils::dump.frames`](https://rdrr.io/r/utils/debugger.html) function can be used to dump all the current evaluation environments to an RDS file. This can be done when an error is encountered, allowing you to conduct post-mortem debugging.
+
+### Exercise: Log to a file {.exercise}
+
+Open the script in `R/factorial.R`. Add code to `factorial_recursive` to log the value of `n` at each invocation of the function. Review the log file after running `factorial_recursive(10)`.
+
+## Debugging in R Markdown and Quarto
+
+The best way to debug code in R Markdown and Quarto is to copy the code to a seperate script, debug it, and copy the code back to the notebook.
+
+Given how easy it is, there's little point in dealing with the reduced developer experience in the notebook environments.
+
+You can set breakpoints on functions defined in chunks (using functions like `debug`). When you call them, the debugger will step through the function as in a script.
+
+If you want to debug an R Markdown file during the rendering phase you much call it manually, rather than knit it via RStudio.
+
+```r
+rmarkdown::render(notebook.Rmd")
+```
+
+This runs the R code in the _current_ session.
+
+Then you need to stop `knitr` swallowing the output, so you can see the errors in the console.
+
+```r
+options(rlang_trace_top_env = rlang::current_env())
+
+options(error = function() {
+  sink()
+  print(rlang::trace_back(bottom = sys.frame(-1)), simplify = "none")
+})
+```
+
+## Debugging in Shiny
+
+Shiny applications present their own debugging challenges. While R follows a linear execution model, Shiny apps are reactive, it difficult to know when code will be run, or what caused it to run.
+
+Print debugging works on Shiny apps, obviously.
+
+We can also set breakpoints in Shiny, but only inside the `shiny::shinyServer` function. Breakpoints in other functions are ignored. We also can't use tracing (or anything that _uses_ tracing, such as `utils::setBreakpoint`). Shiny generates functions dynamically, so trace can't hook into them.
+
+This isn't as limiting as it seems. Code called from Shiny should be under unit testing, so it can be tested and debugged independently of Shiny. Calling external functions from Shiny, just to test/debug them, is adding unncessary complexity.
+
+One powerful tool for understanding how your Shiny code is being executed is Showcase Mode. You can [see it in action](https://gallery.shinyapps.io/050-kmeans-example/) on the Shiny Gallery.
+
+You can enable this mode in your own apps.
+
+```r
+shiny::runApp(display.mode="showcase")
+```
+
+Shiny's reactive execution model can be difficult to trace. A large component may have complicated, interacting dependency changes. When something goes wrong, it can be difficult to distinguish the chickens from the eggs.
+
+[`reactlog`](https://rstudio.github.io/reactlog/) is a visualisation tool than can capture and trace the dependency changes in your app. You can enable it as follows.
+
+```r
+reactlog::reactlog_enable()
+```
+
+The Shiny app is then run as normal. When it finishes, you can view the log as follows.
+
+```r
+shiny::reactlogShow()
+```
+
+The package site hosts an [interactive demo](https://rstudio.github.io/reactlog/demo/reactlog.html).
+
+## Handling errors
+
+Errors in R are known as conditions. Warnings and messages are also conditions.
+
+To handle errors, we register condition handlers to override the default error-handling behaviour.
+
+There are two functions we use to register condition handlers.
+
+- `tryCatch`
+- `withCallingHandlers`
+
+`tryCatch` is used to define **exiting** handlers. When the condition is handled, the returns to where the `tryCatch` was called. The current execution path is abandoned. This makes sense for error handling as it's usually unsafe to continue processing.
+
+`withCallingHandlers` defines **calling** handlers. After condition has been handled, the "happy path" continues. This makes more sense for warnings, as they shouldn't interrupt the control flow.
+
+Handlers are passed a condition object which supplies information about what happened.
+
+We can capture those to review them.
+
+```{r catch_condition}
+condition <- rlang::catch_cnd("1" + "1")
+str(condition)
+```
+
+Here's how we would handle an error.
+
+```{r try_catch}
+tryCatch(
+  error = \(condition) {
+    cat("error:", condition$message, "\n")
+  },
+  {
+    stop("Danger!")
+    cat("You'll never see me...\n")
+  }
+)
+
+cat("Continue after the error has been handled\n")
+```
+
+With a warning, we want to continue on the "happy path".
+
+```{r with_calling_handlers}
+withCallingHandlers(
+  warning = \(condition) {
+    cat("warning:", condition$message, "\n")
+  },
+  {
+    warning("Careful...")
+    cat("You'll see me...\n")
+  }
+)
+
+cat("Continue after the warning has been handled\n")
+```
+
+We could use an exiting handler with a warning, but it usually doesn't make sense.
+
+```{r exiting_handler_with_warning}
+tryCatch(
+  warning = \(condition) {
+    cat("warning:", condition$message, "\n")
+  },
+  {
+    warning("Careful...")
+    cat("You'll never see me...\n")
+  }
+)
+
+cat("Continue after the warning has been handled\n")
+```
+
+## Non-error failures
+
+Sometimes you see a warning in R and can't track down the code that is producing it. You can promote warnings to full errors as follows.
+
+```{r warnings_as_errors}
+options(warn = 2)
+```
+
+To restore the default behaviour, use the following.
+
+```{r warnings_default}
+options(warn = 0)
+```
+
+When the warning is producing an error, you can locate it via the traceback it produces.
+
+## Avoiding errors
+
+Create a contract between your functions and the code calling them. Do this by asserting that the parameters passed to your function are what you expect. This will trap problems in a way that is well-defined and easy to understand. R is very permissive and will often trundle along with whatever garbage you pass to it.
+
+Use `tryCatch` to handle error conditions so you can return informative messages.
+
+Don't use functions that try to infer what you want (e.g. `sapply`). These can be convenient in interactive work, but they will bite you as the complexity of your scripts increases. Prefer more restrictive functions, such as `vapply`, or those in `purrr`.
+
+Use small, pure functions that are easy to review and test.
+
+
+## Summary
+
+In this module, we learned how to use the capabilities of R and RStudio to track down errors in our code.

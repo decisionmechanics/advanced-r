@@ -1,0 +1,297 @@
+---
+title: "Coding conventions"
+---
+
+Coding conventions are an important part of the software development lifecycle. They help to deliver high quality codebases.
+
+In this module, we explore coding conventions and tools that help us adhere to them.
+
+## Style guides
+
+Organisations often have guides that promote consistency. For example, they may have extensive documentation on branding, covering use of logos, fonts, colours, Microsoft Office templates, etc. Or you may have writing style guides (like the [one used](http://cdn.static-economist.com/sites/default/files/store/Style_Guide_2015.pdf "The Economist Style Guide") at The Economist) that ensure communication is consistent with the organisation's image and values.
+
+Coding style guides perform a similar role, but in a technical/engineering context, rather than marketing.
+
+## Coding standards
+
+Coding standards provide numerous benefits.
+
+-   **Consistency**: Standards ensure that all code follows a consistent style, making it easier for developers to read and understand their colleagues' work. Consistent code looks familiar, even if written by different team members.
+
+-   **Readability**: Carefully considered standards improve the readability of code. When code is easier to read, it is easier to understand, debug, and maintain. Readable code also helps new team members get up to speed quickly.
+
+-   **Maintainability**: Code that adheres to standards is easier to maintain over time. It reduces the cognitive load on developers when making changes, as they don’t need to decipher different styles and patterns.
+
+-   **Collaboration**: Standards minimise conflict in teams by providing a common framework for writing code.
+
+-   **Error reduction**: Consistent coding practices help in identifying and fixing errors more efficiently. When everyone follows the same conventions, it is easier to spot deviations or mistakes.
+
+-   **Tooling and automation**: Many development tools, such as linters and formatters, rely on standards to automatically enforce rules and format code. This automation saves time and ensures that code adheres to the defined standards without manual intervention.
+
+-   **Documentation and on-boarding**: Standards serve as documentation for coding practices. It's a valuable resource for on-boarding new team members, helping them understand and adhere to the team’s conventions.
+
+-   **Professionalism**: Adhering to standards demonstrates professionalism and attention to detail.
+
+-   **Future-proofing**: As teams evolve and projects grow, standards help ensure that the code remains manageable and scalable. It provides a foundation for long-term code health and sustainability.
+
+## Creating an organisational style guide
+
+Creating a coding style guide involves bringing best practices into your existing process.
+
+Review existing style guides to get an idea of what they cover, and what they recommend. Two major R style guides are discussed below, but you can learn a lot from style guides designed for other languages. Google maintain a [GitHub repository](https://github.com/google/styleguide "Google's style guides") of their style guides.
+
+Examine existing code and talk to developers to see if there are any existing "conventions" that should be elevated to standards. No-one wants to throw away good practices that are already in place.
+
+It usually makes sense to adopt as much of an existing style guide as you can. Style guides can be tedious to write and a lot of the ideas are uncontroversial. Why reinvent the wheel?
+
+Opinionated style guides are in vogue. Reducing ambiguity in applying guidelines improves adherence. However, this can backfire if you developers had the choices made. Opinionated guides should generally be preferred in the following circumstances.
+
+-   There are inexperienced developers on the team
+
+-   The team isn't mature, or its membership changes regularly
+
+-   There are no coding conventions currently in place
+
+-   The project involves collaborating with external developers
+
+-   It's a greenfield project
+
+It's important to version your style guide. It may evolve over time and you need to keep up to date with new recommendations. You can also look at an old script and cross-reference it with the guide that would have been in place at the time the code was written. This can assist you in modernising your applications/scripts.
+
+## The tidyverse style guide
+
+The [tidyverse style guide](https://style.tidyverse.org) is the most popular R guide—due, in large part, to the popularity of the tidyverse.
+
+It's also supported by two packages that help to apply it—`lintr` and `styler` (both discussed later).
+
+The guide was derived from Google's R style guide, which has now been updated to reflect recommendations in the tidyverse guide—so there's some convergence.
+
+### Exercise: Review the tidyverse style guide {.exercise}
+
+Step through the sections of the [tidyverse style guide](https://style.tidyverse.org) and discuss them.
+
+- What guidelines would you say should be mandatory?
+
+- Where would you be willing to break the "rules"?
+
+- Which guidelines do you disagree with?
+
+- Would this be a suitable baseline for your own style guide?
+
+## Google's R style guide
+
+As [Google's R style guide](https://google.github.io/styleguide/Rguide.html) is a fork of the tidyverse one, it's interesting to note where they deviate. Google modified the tidyverse guide based on the preferences/insights of their own developers.
+
+- Google prefers `TitleCase` for function names. The tidyverse uses `snake_case`.
+
+- Google prefixes private functions with a dot (e.g. `.MyPrivateFunction`). The tidyverse places private functions at the end of files.
+
+- Google discourages the use of `attach()`
+
+- Google discourages right-hand assignment (using `->`)
+
+- Google recommends *explicit* returns. The tidyverse prefers *implicit* returns, by default.
+
+- Google recommends qualifying namespaces for all external functions (e.g. `dplyr::mutate`). They also discourage the use of Roxygen's `@import` tag.
+
+### Exercise: Review your code for style violations {.exercise}
+
+Review one of your R projects/scripts and look for adherence to your preferred style guide. Make notes on any issue you find. Did you disagree with the style guide at any point? If so, why?
+
+Examine a colleague's code. Were you able to spot anything that had escaped the author's review?
+
+## Linting
+
+Linters are programs that analyse source code looking for small problems (i.e. "lint"). They can identify issues such as potential errors, bugs, stylistic errors, and suspicious constructs. It's basically a free code review.
+
+Linting is a static analysis. It doesn't test running code.
+
+R code can be linted using the [`lintr`](https://lintr.r-lib.org/index.html "The lintr R package") package. 
+
+If you are using RStudio, it will identify many of these issues for you in the IDE. However, `lintr` is still useful as you can use it to check for issues prior to committing code to your repository (@fig-code-issues).  
+
+![Code issues](images/code-issues.png){#fig-code-issues}
+
+Linting can be applied on a file-by-file basis.
+
+```{r linting_file}
+lintr::lint(filename = here::here("R/bad.R"))
+```
+
+It can also be applied to an entire folder.
+
+```{r linting_folder}
+lintr::lint_dir(path = here::here("R"))
+```
+
+`lintr` contains a number of [linters](https://lintr.r-lib.org/reference/linters.html "Available linters"), each of which addresses a particular "code smell". The linters are based on the tidyverse style guide.
+
+For example, you can configure the `line_length_linter` to allow line lengths in excess of the default of 80 characters.
+
+```{r linting_longer_lines}
+lintr::lint(
+  here::here("R/bad.R"),
+  linters = lintr::linters_with_defaults(
+    line_length_linter = lintr::line_length_linter(120L)
+  )
+)
+```
+
+Linters are also [tagged](https://lintr.r-lib.org/reference/linters.html "Available tags") (grouped) according to the type of issue they address---e.g. `common_mistakes`. This allows you to check for specific types of problem in your code.
+
+```{r linting_common_mistakes}
+lintr::lint(here::here("R/bad.R"), linters = lintr::linters_with_tags("common_mistakes"))
+```
+
+While you can configure `lintr` from code, it makes more sense to use a `.lintr` file. This can be kept separate from the code, but included as part of the project.
+
+The `.lintr` file is usually stored at the project root. To set the line length limit to 120 characters, you could use the following `.lintr` file.
+
+```
+linters: linters_with_defaults(
+  line_length_linter(120)
+)
+```
+
+The default linter configuration doesn't use all the linters. If you want to use _all_ the available linters, you can set this as follows.
+
+```{r linting_all}
+#| eval: false
+lintr::use_lintr(path = ".", type = "full")
+```
+
+`path` is usually the project root. This will create a `.lintr` file with the appropriate settings.
+
+```
+linters: all_linters(packages = "lintr") # see vignette("lintr")
+encoding: "UTF-8"
+exclusions: list("renv", "packrat") # see ?lintr::exclude
+```
+
+### Exercise: Lint your code {.exercise}
+
+Take some of your R code and lint it. To lint a folder of R code, use the following command.
+
+```{r lint_r_folder}
+lintr::lint_dir(path = here::here("R"))
+```
+
+How many issues were reported? Did you agree with them all? If not, why not?
+
+After linting your own code, try linting `inst/broken/very-bad.R`. The name is a bit of a giveaway. To produce _all_ the lint warnings, we need to configure a few of the linters. To lint `very-bad.R` using the following command.
+
+```{r linting_very_bad}
+lintr::lint(here::here("inst/broken/very-bad.R"), linters = lintr::all_linters(
+  backport_linter = lintr::backport_linter("3.0.0"),
+  cyclocomp_linter = lintr::cyclocomp_linter(complexity_limit = 3L),
+  undesirable_function_linter = lintr::undesirable_function_linter(lintr::modify_defaults(
+    defaults = lintr::default_undesirable_functions,
+    library = NULL
+  ))
+))
+```
+
+The code in `very-bad.R` doesn't even run. It doesn't matter. Remember linting is a _static_ analysis. The code must, however, be _syntactically_ valid. Try running the following code.
+
+```{r linting_invalid_code}
+lintr::lint(text = "c(1, 2")
+```
+
+## Code formatting
+
+It's important to format your code for readability. When you write a document you usually split it into chapters, sections, paragraphs and sentences so that it's easier to digest. Code, being pretty difficult to understand at the best of times, requires us to pay extra attention to formatting.
+
+Try reading the following code.
+
+```{r badly_formatted_code}
+#| eval: false
+readxl::read_excel(here::here("data-raw/1. UK tariffs data for UK-Japan Free Trade Agreement.xlsx"),
+          sheet = 
+            "tariffs schedule"
+)     |> janitor::clean_names(
+  
+) |>        dplyr::mutate(
+    x8_digit_or_10_digit = 
+as.integer     (    x8_digit_or_10_digit)) |> dplyr::select(
+-reporter_name,      -agreement_name,-partner_name,
+       -x8_digit_or_10_digit,
+-notes)   |> arrow::write_parquet(here::here("data-raw/uk-japan-free-trade-agreement.parquet"))
+```
+
+Contrast it with the follow, well-formatted, code.
+
+```{r well_formatted_code}
+#| eval: false
+readxl::read_excel(
+  here::here("data-raw/1. UK tariffs data for UK-Japan Free Trade Agreement.xlsx"),
+  sheet = "tariffs schedule"
+) |>
+  janitor::clean_names() |>
+  dplyr::mutate(x8_digit_or_10_digit = as.integer(x8_digit_or_10_digit)) |>
+  dplyr::select(-reporter_name, -agreement_name, -partner_name, -x8_digit_or_10_digit, -notes) |>
+  arrow::write_parquet(here::here("data-raw/uk-japan-free-trade-agreement.parquet"))
+```
+
+Which version is easier to comprehend?
+
+One of the challenges with code formatting is applying it consistently. Developers often waste time fiddling with the formatting---and people aren't very good at being consistent over extended periods.
+
+This is why _automatic_ code formatting is increasingly popular. Automatic code formatters apply code style conventions without the need for manual intervention.
+
+Benefits of automatic code formatting include:
+
+- Consistent code style
+- Reduced code review overhead (no debates about minutiae)
+- Productivity improvements (no manual tweaking)
+- Syntax checking (invalid code can't be formatted)
+- Improved readability
+- Easier collaboration (e.g. across teams, on-boarding)
+- Cleaner diffs (making it easier to spot changes)
+- Less noisy version control history
+- Adoption of best practices (automatic code formatters embrace community standards)
+
+Some code formatters tend to be opiniated. Others can be extensively customised.
+
+Styler is a popular code formatter for R. It's based on the tidyverse style guide and has tight integration with RStudio. It can reformat R scripts, R Markdown documents, Quarto documents, Sweave (R+Latex) documents and `.Rprofile` files.
+
+You can style a file (e.g. `styler::style_file("data-raw/tweak-data.R")`) or all files in a folder (e.g. `styler::style_dir("R")`).
+
+When using RStudio, styling can be applied via the Addins menu (see @fig-styler-addin).
+
+![Styler Addin](images/styler-addin.png){#fig-styler-addin}
+
+You can perform a "dry run" to see if styler would reformat your files---without _actually_ reformatting them.
+
+```{r styler_dry_run}
+styler::style_file("data-raw/tweak-data.R", dry="on")
+```
+
+You can also format snippets of text, to "preview" how your code might be changed.
+
+```{r style_snippet}
+styler::style_text("x<-1;y<-2")
+```
+
+If you want styling to be less opinionated, you can set the `strict` option to `FALSE`.
+
+```{r styler_not_strict}
+styler::style_file("data-raw/tweak-data.R", strict = FALSE)
+```
+
+Stick with the strict settings. The more leeway you provide, the less value you get from automatic formatting.
+
+You can also customise the rules---even to the point of implementing your own custom style guide from scratch. However, this is a lot of work, and you lose the benefits of having code that is formatted to a community standard. If you have you own custom code conventions, you create on-boarding friction for even experienced R developers.
+
+### Exercise: Apply automatic formatting to your own code {.exercise}
+
+Use the Addin menu to format one of your own code files. **Remember this is a destructive operation**, so make a copy of the file if you need the original. What did it change? Are you happy with the changes? If not, why not?
+
+Edit a file to mess up the formatting and perform a reformatting "dry run".
+
+Use `style_text` to investigate the transformations applied by the default style rules.
+
+Review the tidyverse style guide. Find recommendations that are to do with the format of the code. Write some code that deviates from the style guide and use the styler Addin to reformat it.
+
+## Summary
+
+In this module, we learned how to write R code using consistent “punctuation” and formatting.

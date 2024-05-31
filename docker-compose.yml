@@ -1,0 +1,10 @@
+services:
+  advancedr:
+    build: .
+    ports:
+      - "8787:8787"
+    environment:
+      - PASSWORD=pw
+    volumes:
+      - ~/course:/data:delegated
+    container_name: advancedr

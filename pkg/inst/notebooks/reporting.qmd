@@ -1,0 +1,457 @@
+---
+title: "Reporting"
+---
+
+R supports a number of ways of producing reports/dashboards/presentation---basically, ways of communicating results to stakeholders.
+
+One of the benefits of producing reports using R is that there is a direct relationship between your data and what you publish, which improves reproducibility. It also makes it easy to update your return when data is updated---a common occurrence in most real-world projects.
+
+Reporting in R has undergone a minor revolution in the past two years, with Quarto starting to replace R Markdown.
+
+In this module, we will use R's reporting tools to efficiently produce high quality reports.
+
+## Creating documents using R Markdown
+
+R Markdown allows us to combine (R) code, text, images and visualisations into an interactive document. Text is written using [Markdown](https://www.markdownguide.org/cheat-sheet/)---a lightweight markup format.
+
+If you are using R Markdown outside of RStudio you need to install [the package](https://cran.r-project.org/web/packages/rmarkdown/index.html). If you are an RStudio user, it's already bundled with the IDE.
+
+The easiest way to create a new R Markdown document is via RStudio's menu.
+
+![New R Markdown document menu](images/new-r-markdown-menu.png)
+
+You can configure the document metadata. This is easily changed later.
+
+![New R Markdown document dialog](images/new-r-markdown-dialog.png)
+
+This will produce a file with some sample text/code and the following preamble.
+
+````
+---
+title: "Advanced R"
+author: "Andrew Tait"
+date: "2024-01-01"
+output: html_document
+---
+
+```{{r setup, include=FALSE}}
+knitr::opts_chunk$set(echo = TRUE)
+```
+````
+
+The metadata (delimited by `---`) is what was specified via the dialog. You can simply edit it to change it. The code section (delimited by `` ``` ``) sets a global option to include any code we write as part of the rendered document.
+
+As the dialog suggests, we can use R Markdown to produce presentations (in multiple formats), books and interactive dashboards.
+
+To write text in an R Markdown document you just write it. You can format it using standard Markdown markup. You can also use $\LaTeX$ syntax to include mathematical symbols and equations, such as `$\frac{x}{x + y}$` ($\frac{x}{x + y}$).
+
+The key feature in R Markdown documents is that you can create code chunks.
+
+````
+```{{r random_numbers}}
+rnorm(10)
+```
+````
+
+`random_numbers` is the chunk name. It's optional, but it's a best practice to specify one.
+
+You can create chunk for other languages (e.g. Python), but your environment must support that language (e.g. via [`reticulate`](https://cran.r-project.org/web/packages/reticulate/index.html)).
+
+Code chunks accept options. For example, if we don't want the code to be shown in the document---just the results of running it---we can use `echo=FALSE`.
+
+````
+```{{r no_code, echo=FALSE}}
+rnorm(10)
+```
+````
+
+Some useful options are:
+
+- `echo`---set to `FALSE` to hide the code
+- `eval`---set to `FALSE` to prevent the code running during knitting (rendering)
+- `include`---set to `FALSE` to run the code, but not include it in the final document (e.g. for configuration code)
+- `prompt`---set to `TRUE` to show `>` at the start of each line of code
+- `highlight`---set to `FALSE` if you don't want to emphasise code blocks
+- `error`---set to false to hide errors
+- `warning`---set to false to hide warnings
+- `message`---set to false to hide messages
+
+```{r pi_approximation}
+#| include: false
+pi_markup <- "`r pi`"
+```
+
+We can also use code to render inline values, such as $\pi$ is `{r} pi_markup` (`{r} I(pi)`).
+
+`knitr::kable` can be used to improve the presentation of data frames.
+
+```r
+arrow::read_parquet(here::here("data-raw/trade-in-goods.parquet")) |>
+  head() |> 
+  knitr::kable()
+```
+
+Most R Markdown documents contain charts, and there are a number of options that can be applied to plot chunks.
+
+- `fig.width`---plot width (inches)
+- `fig.height`---plot height (inches)
+- `fig.asp`---set the height-to-width ratio
+- `fig.align`---`left`, `center` or `right`
+- `fig.caption`---figure caption
+- `fig.show`---can be used to `hide` or `animate` plots
+- `fig.path`---location of generated plot files
+- `fig.ext`---file extension of generated plot files
+
+You can use the metadata to change the style of the report. For example, the following will display a table of contents and use the Bootstrap solar theme.
+
+```
+---
+title: "Advanced R"
+author: "Andrew Tait"
+date: "2024-05-25"
+output:
+  html_document:
+    toc: true
+    theme:
+      bootswatch: solar
+---
+```
+
+You can get a list of available themes as follows.
+
+```{r bootstrap_themes}
+bslib::bootswatch_themes() 
+```
+
+### Exercise: Create an R Markdown document {.exercise}
+
+- Create a new markdown file
+- Load some data
+- Display part of the table
+- Plot a figure, with a caption
+- Display a table of contents
+- Use a custom Bootswatch theme
+- Output the document to HTML
+
+An R Markdown cheat sheet and reference guide are available via RStudio's **Help** menu.
+
+## knitr
+
+`knitr` transforms R Markdown documents into standard Markdown (by running the code chunks). Once we have a Markdown document, [pandoc](https://pandoc.org/) can convert it to any number of formats.
+
+![`knitr` workflow](images/knitr-workflow.png)
+
+We can explicitly generate the Markdown document.
+
+```{r kint_markdown}
+knitr::knit(
+  here::here("inst/rmd/trade-in-goods.Rmd"),
+  output = here::here("inst/rmd/trade-in-goods.md")
+)
+```
+
+If we look at the output, we can see the table rendered as Markdown.
+
+Pandoc could then be used to render this as $\LaTeX$.
+
+```
+pandoc trade-in-goods.md -o trade-in-goods.latex
+```
+
+Or it could be rendered as a PDF (via $\LaTeX$).
+
+```
+pandoc trade-in-goods.md -o trade-in-goods.pdf
+```
+
+You can knit documents (including the pandoc conversions) via RStudio
+
+![Knit controls](images/knit-controls.png)
+
+## Building interactive dashboards in R Markdown
+
+R Markdown documents can generate interactive dashboards. It usually only makes sense to export these documents to HTML (or using them within RStudio). Formats like PDF don't support interactive elements.
+
+There are two technologies we can use to create interactive documents.
+
+- HTML Widgets
+- Shiny
+
+HTML Widgets are R bindings to JavaScript libraries. They use the `htmlwidgets` package. In addition to being used in R Markdown documents, HTML Widgets can be used interactively, in the console, or included in Shiny applications.
+
+The JavaScript ecosystem has a _lot_ of visual components. Some of them are already [available as R packages](https://www.htmlwidgets.org/showcase_leaflet.html), built on top of `htmlwidgets`. If there isn't direct support for your favourite JavaScript library, you can create your own HTML Widget for it.
+
+[Leaflet](https://leafletjs.com) is a popular JavaScript mapping library. The R [`leaflet`](https://rstudio.github.io/leaflet/) package uses `htmlwidgets` to provide R bindings.
+
+```{r leaflet}
+arrow::read_parquet(here::here("data-raw/shark-incidents.parquet")) |> 
+  dplyr::mutate(victim_injury = ifelse(victim_injury == "fatal", "red", "#98f5ff")) |> 
+  leaflet::leaflet() |> 
+  leaflet::addTiles() |> 
+  leaflet::addCircleMarkers(
+    lat = ~latitude,
+    lng = ~longitude,
+    fillColor = ~victim_injury,
+    stroke = FALSE
+  )
+```
+
+If you want to interact with your document, you may want to create a Shiny interactive document. The easiest way to do this is to use RStudio to create an example document.
+
+![Create Shiny R Markdown document](images/new-shiny-document.png)
+This creates a functioning sample document with chunks that create Shiny controls.
+
+```r
+shiny::inputPanel(
+  shiny::selectInput("n_breaks", label = "Number of bins:",
+              choices = c(10, 20, 35, 50), selected = 20),
+  
+  shiny::sliderInput("bw_adjust", label = "Bandwidth adjustment:",
+              min = 0.2, max = 2, value = 1, step = 0.2)
+)
+
+shiny::renderPlot({
+  hist(faithful$eruptions, probability = TRUE, breaks = as.numeric(input$n_breaks),
+       xlab = "Duration (minutes)", main = "Geyser eruption duration")
+  
+  dens <- density(faithful$eruptions, adjust = input$bw_adjust)
+  lines(dens, col = "blue")
+})
+```
+
+## R Markdown widgets
+
+Custom HTML Widgets are packages. The core of the widget is JavaScript. R marshals the parameters and passes them to a
+JavaScript function.
+
+To create a new HTML Widget package using the following R functions.
+
+```r
+devtools::create("exercisewidget")
+setwd("exercisewidget")
+htmlwidgets::scaffoldWidget("exercisewidget")
+```
+
+Then edit `R/exercisewidget.R` to add a title and description.
+
+```
+#' Exercise widget
+#'
+#' Exercise callout
+#'
+```
+
+Run `devtools::document()` to rebuild the documentation and then install the package.
+
+Update the `exercisewidget` function to use `opts` for the parameters, rather than `x`. This isn't essential, but is cleaner. Add any parameters you want to pass to your widget (e.g. `task`, `instructions`).
+
+```r
+exercisewidget <- function(task, width = NULL, height = NULL, elementId = NULL) {
+
+  # forward options using opts
+  opts = list(
+    task = task
+  )
+
+  # create widget
+  htmlwidgets::createWidget(
+    name = 'exercisewidget',
+    opts,
+    width = width,
+    height = height,
+    package = 'exercisewidget',
+    elementId = elementId
+  )
+}
+```
+
+Finally, implement your widget using JavaScript.
+
+```javascript
+HTMLWidgets.widget({
+  name: "exercisewidget",
+
+  type: "output",
+
+  factory: function (el, width, height) {
+    return {
+      renderValue: function (opts) {
+        el.style.backgroundColor = "limegreen";
+        el.style.padding = "8px";
+
+        const h3 = document.createElement("h3");
+        h3.innerText = `Exercise: ${opts.task}`;
+        h3.style["font-family"] = "Arial, Helvetica, sans-serif";
+        h3.style.margin = "0 0 8px";
+
+        const p = document.createElement("p");
+        p.innerText = opts.instructions;
+        p.style.margin = "0";
+
+        el.appendChild(h3);
+        el.appendChild(p);
+      },
+
+      resize: function (width, height) {},
+    };
+  },
+});
+```
+
+Finally, test the widget as follows.
+
+```r
+exercisewidget::exercisewidget(
+  "Do something",
+  "Open RStudio and do something with it.",
+  width = "fit-content",
+  height = "fit-content"
+)
+```
+
+This displays the following widget.
+
+![Exercise widget](images/exercise-widget.png)
+
+## Quarto vs R Markdown
+
+R Markdown was introduced in 2012. Over the years, the popularity of R Markdown has led to it being enhanced by a range of packages that support specific use cases (such as [producing books](https://pkgs.rstudio.com/bookdown/)). The proliferation of third-party extensions makes the R Markdown ecosystem confusing to newcomers.
+
+The data science environment has also changed rapidly since 2012. The rise of Python and Jupyter has necessitated solutions that can work across language and IDE boundaries.
+
+These challenges led to the development of Quarto, which was released in 2022.
+
+Using Quarto with R is very similar to using R Markdown. Quarto uses `knitr` to generate Markdown. Code is entered in chunks. So, given the similarities, why was Quarto developed?
+
+While R Markdown can support Python code, you need to install R to use it. Quarto supports R, Python and Observable JS. You only need to install R if your notebook contains R code.
+
+Quarto is more "batteries" included. You don't have to install multiple packages to use it. For example, if you are creating a website in Quarto, you don't need to install the [`blogdown`](https://pkgs.rstudio.com/blogdown/) package. As a bonus, the templates tend to look more modern.
+
+HTML Widgets and Shiny are both supported in interactive Quarto documents---in addition to Jupyter Widgets (Python) and Observable JS. Using Observable JS probably makes more sense, moving forward, for interactive widgets as it's a native JavaScript technology---no need for R bindings. 
+
+R Markdown isn't being deprecated---it will be maintained. However, it's likely that new features will only appear in Quarto, which makes it the sensible choice for new projects.
+
+### Exercise: Create Quarto document {.exercise}
+
+Create a Quarto document using RStudio.
+
+Switch between visual and source editors (tabs at the top of the Code pane). Does the source view feel familiar?
+
+Add some text and code chunks. Render (Quarto doesn't use the "knit" terminology) the document using the button at the top of the Code pane.
+
+## Quarto CLI
+
+Quarto provides a CLI (command line interface) that allows you to review and render documents. This allows you to preview and render documents without needing to have an IDE installed.
+
+## Quarto formatting syntax
+
+The notes for this course use Quatro, so they represent extensive examples of its use. Quarto uses Markdown for text and R Markdown style code chunks.
+
+One of the biggest differences between R Markdown and Quarto is how options are defined. Quarto uses a YAML preamble to define document-level options. A `_quarto.yml` file can also be used to define project-level options---shared across multiple documents.
+
+Quarto uses a special comment syntax to define chunk-level options. For example, the following table is given a caption and label, and the code is suppressed.
+
+````
+```{{r}}
+#| label: tbl-trade-in-goods
+#| tbl-cap: "Trade in goods"
+#| echo: false
+arrow::read_parquet(here::here("data-raw/trade-in-goods.parquet"))
+```
+````
+
+```{r}
+#| label: tbl-trade-in-goods
+#| tbl-cap: "Trade in goods"
+#| echo: false
+#| output: true
+arrow::read_parquet(here::here("data-raw/trade-in-goods.parquet"))
+```
+
+We can refer to it as `@tbl-trade-in-goods` (@tbl-trade-in-goods).
+
+DataCamp have created a handy [Quarto cheat sheet](https://images.datacamp.com/image/upload/v1676540721/Marketing/Blog/Quarto_Cheat_Sheet.pdf).
+
+We can group arbitrary sections of our Quarto documents. This is useful for creating collapsible sections.
+
+```
+::: {.callout-note collapse="true"}
+## What's the secret to life, the universe and everything?
+
+42
+:::
+```
+
+::: {.callout-note collapse="true"}
+## What's the secret to life, the universe and everything?
+
+42
+:::
+
+One particularly powerful feature of Quarto is the ability to annotate _lines_ of code.
+
+```{r code_annotation_format}
+#| eval: false
+#| output: asis
+df <- arrow::read_parquet(here::here("data-raw/trade-in-goods.parquet")) # <1>
+export_df <- dplyr::filter(df, flow == "Exports")                        # <2>
+annual_summary_df <- dplyr::count(df, year, wt = value, name = "value")  # <3>
+ggplot2::ggplot(annual_summary_df, ggplot2::aes(x = year, y = value)) +  # <4>
+  ggplot2::geom_col()
+```
+This produces
+
+```{r code_annotation}
+df <- arrow::read_parquet(here::here("data-raw/trade-in-goods.parquet")) # <1>
+export_df <- dplyr::filter(df, flow == "Exports")                        # <2>
+annual_summary_df <- dplyr::count(df, year, wt = value, name = "value")  # <3>
+ggplot2::ggplot(annual_summary_df, ggplot2::aes(x = year, y = value)) +  # <4>
+  ggplot2::geom_col()
+```
+
+1. Load the data
+2. Extract export flows
+3. Summarise by year
+4. Display as bar chart
+
+### Exercise: Create a reveal.js presentation {.exercise}
+
+Use RStudio to create a Quarto presentation that renders as reveal.js.
+
+Review the [documentation](https://quarto.org/docs/presentations/revealjs/) to extend the presentation.
+
+## Publishing with Quarto
+
+There are many ways to publish Quarto documents.
+
+- [Quarto Pub](https://quarto.org/docs/publishing/quarto-pub.html): Free service for hosting public documents
+- [GitHub Pages](https://pages.github.com): Render your document as a website
+- [Posit Connect](https://posit.co/products/enterprise/connect/): Commercial solution that supports sharing Quarto documents securely within an organisation
+- [Posit Cloud](https://posit.co/products/enterprise/connect/): Publish from cloud-hosted version of RStudio
+- [Others]: Quarto can be exported to standard formats, such as Markdown, HTML and PDF, so it's easy to find hosting options.
+
+To publish to Quarto Pub we use the CLI.
+
+```bash
+quarto publish quarto-pub reporting.qmd
+```
+
+### Exercise: Publish to Quarto Pub {.exercise}
+
+Publish one of the course notebooks to your Quarto Pub account.
+
+## Typst
+
+[Typst](https://typst.app) is a new open-source typesetting system---a modern version of $\LaTeX$. Key features include:
+
+- Fast rendering
+- Batteries-included functionality
+- Modern, consistent syntax
+
+The Typst project is independent of Quarto, but Quarto recently [added support](https://quarto.org/docs/output-formats/typst.html) for it.
+
+If you want to produce publication quality reports from Quarto, Typst might be the way to go.
+
+## Summary
+
+In this module, we learned how to produce reports using R.

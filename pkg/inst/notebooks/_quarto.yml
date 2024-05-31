@@ -1,0 +1,28 @@
+title: "Reporting"
+format:
+  html:
+    toc: true
+    toc-depth: 2
+    theme:
+      - default
+      - custom.scss
+    css: styles.css
+editor: source
+execute:
+  output: false
+project:
+  render:
+    - overview.qmd
+    - coding-conventions.qmd
+    - functional-programming.qmd
+    - oop.qmd
+    - debugging.qmd
+    - testing.qmd
+    - efficient-code.qmd
+    - reporting.qmd
+    - reproducible-workflows.qmd
+    - packages.qmd
+  preview:
+    host: 0.0.0.0
+    port: 8889
+lightbox: true

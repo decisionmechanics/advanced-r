@@ -1,0 +1,287 @@
+---
+title: "Testing"
+---
+
+Testing is important in software development. Data analysis presents specific testing challenges as it can be difficult to spot logic errors when applying complex calculations to large amounts of data.
+
+In this module, we learn how to improve code quality using automated testing.
+
+## Unit testing
+
+Unit testing involves testing individual units or components of a software application to ensure they work as intended. Each unit is tested separately in isolation from the rest of the application. The primary goal is to validate that each unit performs as expected.
+
+We can contrast it with integration and end-to-end testing, when the goal is to test subsystems or entire applications.
+
+Benefits of unit testing include:
+
+- **Early bug detection**: Issues are identified and resolved early in the development process.
+- **Code quality**: Promotes cleaner, more modular code, as developers write testable units.
+- **Refactoring support**: Facilitates safe code refactoring by ensuring existing functionality remains unaffected.
+- **Documentation**: Tests serve as documentation, clarifying the expected behavior of units.
+- **Efficiency**: Saves time and effort in the long run by reducing debugging and maintenance costs.
+- **Reliability**: Increases the overall reliability of the software by ensuring individual components function correctly.
+
+Unit testing is quite simple---we write code that tests code. This means we don't have to learn a lot of new tools just to run tests.
+
+In R, the units we test will generally be functions, or objects.
+
+## `testthat`
+
+`testthat` is a popular unit testing package for R. It contains functions that allow us to specify what we expect our code to do.
+
+```{r testthat}
+testthat::expect_equal(factorial(6L), 720L)
+testthat::expect_length(1L:10L |> purrr::keep(\(x) x %% 2L == 0L), 5L)
+```
+
+There are [many expectation functions](https://testthat.r-lib.org/reference/index.html#section-expectations) in `testthat`. They all begin with `expect_`.
+
+Of course, we don't want to test base R functions, or third-party library code. Unit tests should test our own code. Tests should also be simple and test one thing at a time. Complex tests mean that we need to test the tests!
+
+The convention with `testhat` is to create our tests in a `tests/testthat` folder. We create a test file for every R script we place under test. So, if we have a script called `R/utilities.R`, then we would test it in `tests/testthat/test_utilities.R`
+
+Our test files contain calls to `test_that`. Each call should test a single unit and define a very limited number of expectations---often only one. If we test too much at once, it's difficult to know what is broken when a test fails. If you want to test multiple things, write multiple tests.
+
+There are three elements to a unit test.
+
+1. **Arrange**: Prepare any additional objects you need to conduct the test
+2. **Act**: Run the code to be tested (e.g. call a function)
+3. **Assert**: Confirm that your expectations have been met
+
+Let's say we want to test function `is_prime` in `R/caching.R`. Our tests would be in `tests/testthat/test_caching.R`.
+
+```{r test_is_prime}
+#| eval: false
+# tests/testthat/test_caching.R
+
+testthat::test_that(
+  "Checking if 7 is prime",
+  {
+    # Act/Assert
+    testthat::expect_true(is_prime(7))
+  }
+)
+```
+
+We can run all the tests in a folder.
+
+```{r test_folder}
+#| eval: false
+testthat::test_dir(here::here("tests/testthat"))
+```
+
+When developing a package, it's common to use `devtools::tests()`, but that will reload the entire package, so we'll directly target the tests folder for convenience.
+
+### Exercise: Write unit tests {.exercise}
+
+Add `is_prime` unit tests to cover edge cases.
+
+Examine some of your own R code. Would it be easy to test? Try writing a unit test for one of your functions.
+
+## Test-driven development
+
+Test-Driven Development (TDD) is a software development process where tests are written before the code that is needed to pass the tests. It focuses on creating minimal, functional code to satisfy the requirements defined by the tests. Here are the key steps involved in TDD:
+
+- **Write a test**: Begin by writing a test for a new function or feature. This test defines the desired behavior of the code. Initially, this test will fail since the functionality has not yet been implemented.
+
+- **Run the test**: Execute the test to ensure that it fails. This confirms that the test is working correctly and that the desired functionality is not present.
+
+- **Write the code**: Develop the minimal amount of code necessary to make the test pass. The focus is on writing just enough code to satisfy the test requirements.
+
+- **Re-run the tes**: Execute the test once more to verify that the new code passes the test. If the test passes, it indicates that the functionality is working as expected.
+
+- **Refactor**: Review and improve the code without changing its external behavior. Refactoring helps in optimizing and cleaning up the code while ensuring that it still passes the test.
+
+- **Repeat**: Continue this cycle, adding more tests for additional functionality, and following the same steps to develop the corresponding code.
+
+## Breaking dependencies
+
+Tests should be deterministic and not depend on external sources. Consider the following function that uses an API to find out who is currently in space.
+
+```{r tightly_coupled}
+#| eval: false
+fetch_astronauts <- function() {
+  httr2::request("http://api.open-notify.org/astros") |> 
+    httr2::req_perform() |> 
+    httr2::resp_body_json() |>
+    purrr::pluck("people") |> 
+    purrr::map_df(tibble::as_tibble)
+}
+
+fetch_astronauts()
+```
+
+We can't place `fetch_astronauts` under unit testing, as we'd be testing the API at the same time. We need to decouple our code from the API.
+
+```{r decoupled}
+#| eval: false
+parse_astronauts <- function(data) {
+  data |>
+    purrr::pluck("people") |> 
+    purrr::map_df(tibble::as_tibble)
+}
+
+fetch_astronauts <- function() {
+  httr2::request("http://api.open-notify.org/astros") |> 
+    httr2::req_perform() |> 
+    httr2::resp_body_json() |>
+    parse_astronauts()
+}
+
+fetch_astronauts()
+```
+
+We still can't test `fetch_astronauts`, but we now have a testable `parse_astronauts` function. To test it, we need to pass it some static astronaut data.
+
+```{r test_parse_astronauts}
+#| eval: false
+create_data <- function() {
+  jsonlite::parse_json("{\"message\": \"success\", \"people\": [{\"name\": \"Jasmin Moghbeli\", \"craft\": \"ISS\"}, {\"name\": \"Andreas Mogensen\", \"craft\": \"ISS\"}, {\"name\": \"Satoshi Furukawa\", \"craft\": \"ISS\"}, {\"name\": \"Konstantin Borisov\", \"craft\": \"ISS\"}, {\"name\": \"Oleg Kononenko\", \"craft\": \"ISS\"}, {\"name\": \"Nikolai Chub\", \"craft\": \"ISS\"}, {\"name\": \"Loral O'Hara\", \"craft\": \"ISS\"}], \"number\": 7}")
+}
+
+testthat::test_that(
+  "Parsing astronauts returns a tibble",
+  {
+    # Arrange
+
+    data <- create_data()
+
+    # Act
+
+    astronaut_df <- parse_astronauts(data)
+
+    # Assert
+
+    testthat::expect_s3_class(astronaut_df, "tbl")
+  }
+)
+```
+
+## Code coverage
+
+Code coverage measures what percentage of your code is actually _run_ by your unit tests---i.e. the extent of your testing.
+
+```{r code_coverage}
+#| eval: false
+covr::file_coverage(
+  here::here("R/astronauts.R"),
+  here::here("tests/testthat/test_astronauts.R")
+)
+```
+
+It's important not to chase high code coverage for the sake of it. It's only a guide.
+
+### Exercise: Increase code coverage {.exercise}
+
+Consider how you could increase the code coverage of `R/astronauts.R`.
+
+## Data validation
+
+Maintaining data quality should be a primary objective in most R projects. The presence of tools like Excel in most data ecosystems means that we need to be extra vigilant about what we are accepting. If we validate data as it crosses our boundary we can be more confident that our work hasn't been polluted by upstream data quality issues.
+
+Common data quality issues include:
+
+- Additional header/footer rows
+- Dates wrongly formatted
+- Ranges interpreted as dates (e.g. 10-49)
+- Numeric ID fields mangled (e.g. 00398293828273 becomes 3.98294E+11)
+- Bad fields (e.g. notes added in a numeric column)
+- Data encoded in formatting (e.g. via colours)
+
+### Exercise: Data quality problems {.exercise}
+
+Share some of the data quality problems you have experienced in your work. Do you think these could have been mitigated using automated data quality checks? If not, what other QA steps could have been taken?
+
+## `validate`
+
+The [`validate`](https://cran.r-project.org/web/packages/validate/index.html) package allows us to specify validation rules that can be applied to any data we rely on.
+
+While checking data provided by others is an obvious use-case for formal data validation, it can also be a useful check within your internal data pipelines. Perform data validation for each of the stages in your pipeline and you'll spot errors in your own scripts before they go too far.
+
+You should also validate the data you send to others. You want to be sure that any data you share is high quality.
+
+Let's look at an example of how we might validate a trade tariffs dataset.
+
+The validate rules are defined as follows.
+
+```{r validation_rules}
+DUTY_RATE_PATTERN = "^(\\d{1,2}\\.?\\d? ?%|excluded)"
+
+rules <- validate::validator(
+  reporter_name_gb = reporter_name == "United Kingdom",
+  agreement_name_gb_jp = agreement_name == "United Kingdom - Japan",
+  partner_name_jp = partner_name == "Japan",
+  commodity_heading_leading_number = grepl("^\\d{2} - ", commodity_heading),
+  commodity_code_format = grepl("^\\d{8}(\\d{2})?$", commodity_code),
+  commodity_code_length = x8_digit_or_10_digit %in% c(8, 10),
+  rate_2021_01 = grepl(DUTY_RATE_PATTERN, preferential_duty_rate_from_01_01_2021),
+  rate_2021_02 = grepl(DUTY_RATE_PATTERN, preferential_duty_rate_from_01_02_2021),
+  rate_2022_02 = grepl(DUTY_RATE_PATTERN, preferential_duty_rate_from_01_02_2022),
+  rate_2023_02 = grepl(DUTY_RATE_PATTERN, preferential_duty_rate_from_01_02_2023),
+  rate_2024_02 = grepl(DUTY_RATE_PATTERN, preferential_duty_rate_from_01_02_2024),
+  rate_2025_02 = grepl(DUTY_RATE_PATTERN, preferential_duty_rate_from_01_02_2025),
+  rate_2026_02 = grepl(DUTY_RATE_PATTERN, preferential_duty_rate_from_01_02_2026),
+  rate_2027_02 = grepl(DUTY_RATE_PATTERN, preferential_duty_rate_from_01_02_2027),
+  rate_2028_02 = grepl(DUTY_RATE_PATTERN, preferential_duty_rate_from_01_02_2028),
+  rate_2029_02 = grepl(DUTY_RATE_PATTERN, preferential_duty_rate_from_01_02_2029),
+  rate_2030_02 = grepl(DUTY_RATE_PATTERN, preferential_duty_rate_from_01_02_2030),
+  rate_2031_02 = grepl(DUTY_RATE_PATTERN, preferential_duty_rate_from_01_02_2031),
+  rate_2032_02 = grepl(DUTY_RATE_PATTERN, preferential_duty_rate_from_01_02_2032),
+  rate_2033_02 = grepl(DUTY_RATE_PATTERN, preferential_duty_rate_from_01_02_2033),
+  rate_2034_02 = grepl(DUTY_RATE_PATTERN, preferential_duty_rate_from_01_02_2034),
+  excluded = preferential_applied_duty_rate_excluded %in% c("Y", "N")
+)
+```
+
+Any expression that evaluates to a logical value can be used as a validation rule.
+
+There are also a range of [helper functions](https://data-cleaning.github.io/validate/sect-work.html#sect-syntax) that can be used to improve the readability of the rules.
+
+Once you have the rules, you can apply them to a data frame using `validate::confront`. This returns an object containing the results of the validation check. We can view them using ``validate::summary``.
+
+```{r validation_summary}
+tariffs_df <- readxl::read_excel(
+  here::here("data-raw/1. UK tariffs data for UK-Japan Free Trade Agreement.xlsx"),
+  sheet = "tariffs schedule"
+) |>
+  janitor::clean_names()
+
+out <- tariffs_df |> 
+  validate::confront(rules)
+  
+validate::summary(out) |> 
+  dplyr::select(-expression)
+```
+
+The trade tariff dataset meets our expectations.
+
+If we don't want to plough through the results, we restrict the output to the expectations that _aren't_ met by the dataset.
+
+```{r valiation_violations}
+tariffs_df |> 
+  validate::violating(out)
+```
+
+Finally, we can get a visual overview of the extent to which our expectations are met by the dataset.
+
+```{r visualing_expectations}
+validate::plot(out)
+```
+
+### Exercise: Validate datasets {.exercise}
+
+Add a validation rule that the trade dataset _doesn't_ meet. Examine how the validate functions report the problems.
+
+Define some expectations of the trade in goods dataset. See if it meets them.
+
+If you have your own data, write a validation rule for one of the columns.
+
+## Debugging tests
+
+Tests should be relatively simple and not need debugging. The code _under_ test, will need to be debugged, but that can be done in the normal manner.
+
+If you have to debug a test, you will find that the test runner ignores your breakpoints. Work around this by adding a `browser()` call where you'd like execution to stop. Remember to remove the `browser()` statement when you are done.
+
+## Summary
+
+In this module, we learned how to improve code quality using automated testing.

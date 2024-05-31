@@ -1,0 +1,40 @@
+Package: advancedr
+Type: Package
+Title: Advanced R Course
+Version: 0.1.0
+Authors@R: 
+    person(
+      "Andrew",
+      "Tait",
+      email = "Andrew.Tait@decisionmechanics.com", 
+      role = c("aut", "cre"),
+      comment = c(ORCID = "0000-0002-0108-3173")
+    )
+Maintainer: Andrew Tait <Andrew.Tait@decisionmechanics.com>
+Description: Contains materials for the Advanced R training course.
+    The notebooks are all produced using Quarto.
+URL: https://github.com/decisionmechanics/advanced-r
+BugReports: https://github.com/decisionmechanics/advanced-r/issues
+License: file LICENSE
+Encoding: UTF-8
+LazyData: true
+Suggests:
+    arrow,
+    bench,
+    dplyr,
+    duckplyr,
+    here,
+    httr2,
+    jsonlite,
+    knitr,
+    lubridate,
+    purrr,
+    rlang,
+    rmarkdown,
+    testthat (>= 3.0.0),
+    tibble
+Config/testthat/edition: 3
+Depends: 
+    R (>= 3.5.0)
+VignetteBuilder: knitr
+RoxygenNote: 7.3.1

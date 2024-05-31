@@ -1,0 +1,224 @@
+---
+title: "Packages"
+---
+
+Packages are the primary vehicle for sharing code (and data, reports, etc.) in R. The most common way to install and R package is from the [Comprehensive R Archive Network](https://cran.r-project.org) (CRAN), but it's not the only way.
+
+In this module, we learn how to create standardised projects and libraries using packages.
+
+## The structure of an R Package
+
+The simplest way to create a new package in R is to use RStudio.
+
+![New package wizard](images/new-package.png)
+
+This creates a skeleton package project, including a single R script (`R/hello.R`)---which you can delete.
+
+Packages names should contain only lowercase letters and numbers, and must start with a letter. If you are publishing the package, make sure the name is unique and each to search for (e.g. avoid common terms, or names that are used in other ecosystems, such as pandas). The [`available`](https://cran.r-project.org/web/packages/available/index.html) package can be used to critique potential names.
+
+```{r available}
+#| eval: false
+available::available("pandas")
+```
+
+The `R` folder is where you put your functions. These should be in R scripts (`.R` files). If your script contains a single function, name the script after the function. If it contains multiple functions, use a name that describes the group. If you can't think of one, you probably need to rethink how your functions are organised.
+
+When you want to test your code, use `devtools::load_all()` to load the package.
+
+Try not to change anything in your code that affects global state. Don't use commands like `library` (namespace your function calls) or `set.seed`. If you _must_ change global state, save the old state and restore it as soon as possible.
+
+Document your public functions extensively using [`roxygen2`](https://github.com/r-lib/roxygen2). This uses a specific comment syntax, and Markdown, to feed an automatic documentation generator. You should consider adding the following descriptions.
+
+```r
+#' @title
+#' @description
+#' @param
+#' @return
+#' @example
+#' @examples
+```
+
+- `title` defines the title for the help page, and should use title case
+- `description` describes what the function does
+- `param` describes any function parameters (one per parameter)
+- `return` describes what value the function returns
+- `example` show a simple (single line) example of usage
+- `exmaples` is used if your examples are more extensive
+
+Once you have documented your functions using these comments, running `devtools::document()` will produce `.Rd` files in your package's `man` folder.
+
+If you wish to include data files in your package, create `.rda` files and place them in `data/`. The easiest way to do this is via the `use_data` function.
+
+```r
+usethis::use_data(shark_incidents)
+```
+
+It's good practice to document your datasets. You can do this in 'R/shark_incidents.R'. Use an `roxygen2` block. Here's an example for the shark incident dataset.
+
+```
+#' Shark incident data
+#'
+#' Data from the hAustralian Shark-Incident Database (ASID)
+#'
+#' @format ## `shark-indicents`
+#' A data frame with 1,196 rows and 60 columns:
+#' \describe{
+#'   \item{uin}{Unique ID}
+#'   \item{incident_month, incident_year}{month & year of incident}
+#'   \item{victim_injury}{injured or fatal}
+#'   ...
+#' }
+#' @source <https://taronga.org.au/conservation-and-science/australian-shark-incident-database>
+"shark-incidents"
+```
+
+You may also wish to provide `README.md` and `NEWS.md` files in your package. The former is used to provide basic orientation information, while the latter is used to inform users as to what has changed in an update.
+
+### Exercise: Create a package {.exercise}
+
+- Create a new package using RStudio
+- Add a `R/utils.R` and write a simple function
+- Document the function using `roxygen2` comments
+- Generate the documentation using `devtools::document()`
+- Preview the `.Rd` file for your utils script.
+
+## Package development workflows
+
+Keep your package root as your working directory. Relative paths can get very complicated, so it helps to have a mental model that everything is relative to the root. The [`here`](https://here.r-lib.org) package simplifies using package-relative pathing.
+
+`devtools::load_all()` will install your package locally. This allows you to test it effectively. Some components, such as vignettes, won't work correctly until you have installed all your changes. If you are using RStudio, you can use the **Build** > ** Install Package** menu to reinstall the package.
+
+::: {.callout-important}
+Don't `source` your files. This will result in conflicts.
+:::
+
+Create extensive unit tests for your package. Run them regularly using `devtools::test()` or RStudio's **Build** > **Test Package** menu.
+
+Periodically validate your package using `devtools::check()` or RStudio's **Build** > **Check Package** menu. Don't wait until the end to do this, or you may end up with a lot of refactoring. [Over 50 checks](https://r-pkgs.org/R-CMD-check.html) are made to your package when you run this function.
+
+::: {.callout-note}
+You may need to change the CRAN mirror to get `devtools::check()` to work correctly.
+
+```{r cran_mirror}
+options(repos = c(CRAN = "https://cloud.r-project.org"))
+```
+:::
+
+`devtools::spell_check()` should be run on your package to catch any embarrassing spelling mistakes.
+
+If you want to make sure the package will work correctly on different platforms, you can use
+
+- `devtools::check_win_devel()`
+- `devtools::check_mac_release()`
+
+### Exercise: Check a package {.exercise}
+
+Check the course package, using the following commands.
+
+- `devtools::document()`
+- `devtools::spell_check()`
+- Run the tests from the RStudio **Build** menu
+- Check the package using the RStudio **Build** menu
+
+## Metadata
+
+The main metadata files in a package are `DESCRIPTION` and `NAMESPACE`.
+
+`DESCRIPTION` contains the majority of the metadata. 
+
+::: {.callout-note}
+Review the `DESCRIPTION` file for the course package.
+:::
+
+The `Title` should be a one-line description of the package, using title case. It shouldn't end in a period. The `DESCRIPTION` is a paragraph that provides more detail/context. It can be multiple lines. Lines after the first one should be indented by four spaces.
+
+Other key fields you'll want to provide/update include:
+
+- `Version`
+- `Authors@R`
+- `Maintainer`
+- `URL`
+- `BugReports`
+- `License`
+
+![`dplyr` CRAN page](images/dplyr-cran.png)
+
+Authors can have the following roles.
+
+- `cre`: creator/maintainer
+- `aut`: author with significant contributions
+- `ctb`: contributor (e.g. patches, documentation updates)
+- `cph`: non-author copyright holders (e.g. institutions)
+- `fnd`: financial contributors
+
+The `Imports` and `Suggests` fields are used to define the packages dependencies. `Imports` defines packages that are essential to the functioning of your package. If the libraries are available, then your package will not function. `Suggests` is used to define packages that your package depends on, but aren't central to the functioning of your package.
+
+An example of a package in the `Suggests` list might be one that is only required in a vignette.
+
+`NAMESPACE` specifies which functions you export from your package. The default file, added when you create a new package project in RStudio, exports _all_ the functions you define.
+
+```r
+exportPattern("^[[:alpha:]]+")
+```
+
+It's better to be explicit about what you export. Exporting unneeded functions pollutes the user's namespace. Also, if you export a function, you are agreeing that it is part of your package's API, so you should support it moving forward. The less you export, the less you have to maintain.
+
+You can also _import_ functions in `NAMESPACE`. These are functions that your package uses. `import(dyplr)` imports _all_ the functions from `dyplr`. `importFrom("dyplr", "filter", "mutate")` imports the `filter` and `mutate` functions from `dplyr`. It's generally better to import just the functions you need using `importFrom`.
+
+You can also fully qualify functions you use (e.g. `dplyr::filter`). This has the benefit of making your dependencies clear and removes the risk of functions being masked.
+
+## Vignettes
+
+Vignettes complement your function documentation. `man/' contains reference documentation. Vignettes are longer guides, often explaining how to solve particular problems using your package. Good vignettes make it much easier for developers to adopt your package. They should address a topic of obvious interest to your audience and provide a step-by-step example of how your package can assist.
+
+To create a vignette, use:
+
+```r
+usethis::use_vignette("creating-packages", title = "Creating R Packages")
+```
+
+This creates an example R Markdown file for you to flesh out. Vignette's are one area where you should use R Markdown, rather than Quarto`. The ecosystem is still catching up, so the current tooling is centered on R Markdown.
+
+::: {.callout-important}
+Remember to install the most recent version of your package before knitting your vignette. The vignette will be rendered from the currently installed package---_not_ the current source code.
+:::
+
+## Creating a website
+
+Use [`pkgdown`](https://pkgdown.r-lib.org) to create a website for your package.
+
+```r
+usethis::use_pkgdown()
+pkgdown::build_site(override = list(destination = = tempdir()))
+```
+
+This generates a `docs/` folder. The package `README.md` becomes the home page, vignettes become articles and the `man/` documents become a reference section.
+
+### Exercise: Create a package website {.exercise}
+
+Create a website for the course package.
+
+## Publish your package
+
+Before publishing a package make sure you have, at a minimum, done the following.
+
+- Linted your code
+- Formatted your code
+- Spell-checked the package
+- Run R Cmd check on the package
+
+Once that is done, you can publish to CRAN using `devtools::release()`. This will run tests on your package and post it to CRAN.
+
+If you want to host your package on GitHub, you push it to your remote repository, as with any project. Then it can be installed as follows.
+
+```r
+devtools::install_github("decisionmechanics/advanced-r", subdir="pkg")
+```
+
+### Exercise: Install the course package directly from GitHub {.exercise}
+
+Use `devtools::install_github()` to install the course package.
+
+## Summary
+
+In this module, we learned how to create R packages.

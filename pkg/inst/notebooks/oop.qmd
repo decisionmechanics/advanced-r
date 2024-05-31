@@ -1,0 +1,831 @@
+---
+title: "Object-oriented programming"
+---
+
+In this module, we'll learn how to improve our program designs using OOP techniques.
+
+R is a hybrid language. It supports multiple programming paradigms. While the functional paradigm tends to dominate in R, you can write OOP code as well.
+
+OOP can be attractive if your application requires a lot of mutation. In that case, OOP might offer better performance than functional programming.
+
+If you come from an enterprise development background, you may be more comfortable with writing OOP code.
+
+You also have to adopt OOP approaches if you want to hook deeply into R. This tends to require familiarity with, at least, R's S3 system.
+
+## R’s OOP systems
+
+R has multiple OOP systems.
+
+- **S3**
+- **S4**
+- ~~Reference Classes (RC)~~
+- **R6**
+- S7
+- ~~R5~~
+- ~~mutatr~~
+- ~~OOP~~
+- ~~R.oo~~
+- ~~proto~~
+
+R5, mutatr, OOP, proto and R.oo can be considered historical curiosities at this point. RC implements encapsulate OO. This is the same approach taken by R6. R6 is simpler, faster and better documented than RC. RC also depends on the more complicated S4 system, while R6 uses S3. For these reasons (and others) we'll learn about R6 and not consider RC any further.
+
+S7 is a new proposed successor to S3 and S4--taking the best bits from each. It's still experimental, so we only consider it briefly, as it's subject to change.
+
+R's can be quite unfamiliar to those coming from a traditional enterprise OOP language, such as Java. OOP has three "pillars".
+
+- Encapsulation
+- Inheritance
+- Polymorphism
+
+The R OOP systems differ in their focus/support with respect to the pillars.
+
+John Chambers, creator of the S programming language, said:
+
+> Everything that exists in R is an object
+
+This does _not_ mean, however, that everything in R is OO. This can lead to confusion between base objects and OO objects.
+
+```{r oo}
+x <- 1L:3L
+is.object(x)
+sloop::otype(x)
+
+df <- tibble::tibble(x = 1L:3L)
+is.object(df)
+sloop::otype(df)
+```
+
+## Writing polymorphic code using S3
+
+S3 is the original OOP system in R. It's used in core packages, such as `base` and `stats`. An understanding of the S3 system is essential if you want to understand the mechanics of how R works.
+
+Fortunately, it's very simple.
+
+S3 is useful in the following situations.
+
+- A function creates a heterogeneous list of items that should be treated as a whole (e.g.`boot` objects)
+- Base types need to be enriched with metadata (e.g. factors)
+
+An S3 object is a base class with (at least) a `class` attribute.
+
+```{r s3}
+days_of_the_week <- c("Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday") |> 
+  as.factor()
+
+attributes(days_of_the_week)
+```
+
+We could create this manually.
+
+```{r s3_manually}
+structure(
+  c(1L, 2L, 3L, 4L, 5L, 6L, 7L),
+  levels = c("Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"),
+  class = "factor"
+)
+```
+
+You can get the data underlying an object.
+
+```{r unclass}
+unclass(days_of_the_week)
+```
+
+We can create our own S3 classes. Let's create a class that represents measures, with their uncertainty. The measures can be a standard numeric vector. To represent the error terms, we'll need to add metadata.
+
+The S3 system doesn't provide many safety rails, so conventions are important. When creating a new S3 class, provide the following functions.
+
+- A (low-level) **constructor** that builds new objects
+- A **validator** that checks that the object has the correct values
+- A **helper** that makes it easy for others to create objects
+
+Simple classes may dispense with the validator and helper.
+
+Let's define a constructor for this new (`uncertain`) class.
+
+```{r uncertain_constructor}
+new_uncertain <- function(x, errors) {
+  print(x)
+  print(errors)
+  
+  stopifnot(any(length(errors) == c(length(x), 1L)))
+  
+  if (length(errors) == 1L) {
+    errors <- rep(errors, length(x))
+  }
+  
+  structure(x, errors = errors, class = "uncertain")
+}
+```
+
+Constructors should be lightweight and unencumbered by expensive checks.
+
+The validator can check that the error terms are non-negative.
+
+```{r uncertain_validator}
+validate_uncertain <- function(x) {
+  errors <- attr(x, "errors")
+  
+  if (any(errors < 0.0)) {
+    stop("errors cannot be -ve", call. = FALSE)
+  }
+}
+```
+
+This is very basic, but a complex object may have a range of checks.
+
+The helper function wraps the constructor and validator up in a convenient package.
+
+```{r uncertain_helper}
+uncertain <- function(x = double(), errors = 0.0) {
+  x <- new_uncertain(as.double(x), errors = as.double(errors))
+  
+  validate_uncertain(x)
+  
+  x
+}
+```
+
+We can now create a new `uncertain` object.
+
+```{r uncertain_object}
+uncertain(1L:10L, errors = runif(10L, min = 0.0, max = 0.2))
+```
+
+When the object is printed, we see some rather ugly implementation details. We can clean this up using _generics_.
+
+Generics allow us to implement polymorphism---where the behaviour of a function is determined by the class of its subject (parameter). You use generics all the time.
+
+```{r s3_polymorphism}
+df <- tibble::tibble(y = 1L:10L)
+boot_obj <- boot::boot(runif(20L), median, 1000L, sim = "parametric")
+
+sloop::s3_class(df)
+sloop::s3_class(boot_obj)
+
+print(boot_obj)
+print(df)
+```
+
+One function (`print`) that provides very different outputs depending on the class of the parameter. `print` is a generic.
+
+We can provide a method for the print generic that supports our `uncertain` class.
+
+```{r uncertain_print_generic}
+print.uncertain <- function(x, ...) {
+  errors <- attr(x, "errors")
+  class(x) <- setdiff(class(x), "uncertain")
+  attr(x, "errors") <- NULL
+  NextMethod()
+  cat("Errors: ", paste(round(errors, digits = 2L)), "\n")
+}
+```
+
+Now our output is much prettier.
+
+```{r uncertain_object_output}
+uncertain(1:10, errors = runif(10, min = 0, max = 0.2))
+```
+
+We could have used a slightly simpler implementation.
+
+```{r uncertain_print_generic_simple}
+#| eval: false
+print.uncertain <- function(x, ...) {
+  errors <- attr(x, "errors")
+  attr(x, "errors") <- NULL
+  print(unclass(x))
+  cat("Errors: ", paste(round(errors, digits = 2L)), "\n")
+}
+```
+
+However, calling `NextMethod` means `uncertain` can participate in inheritance chains.
+
+We can view all the methods assigned to the S3 `print` generic.
+
+```{r all_print_methods}
+.S3methods(print)
+```
+
+What happens when we subset an `uncertain` object?
+
+```{r bad_subsetting}
+x <- uncertain(1L:10L, errors = runif(10, min = 0.0, max = 0.2))
+x[4:6]
+```
+
+Hmmm... We lose the errors!
+
+We can fix this by adding a method to the `[` generic.
+
+```{r subsetting_generic}
+`[.uncertain` <- function(x, ...) {
+  new_uncertain(NextMethod(), attr(x, "errors")[...])
+}
+
+x <- uncertain(1L:10L, errors = runif(10L, min = 0.0, max = 0.2))
+x[1L:3L]
+```
+
+If we wanted to support mathematical operations on `uncertain`, we could provide methods such as `abs.uncertain`. This would get tedious if we wanted to support _all_ such functions. R removes some of the pain by defining [S3 group generics](https://rdrr.io/r/base/groupGeneric.html).
+
+There are four groups.
+
+- `Math` (abs, sqrt, etc.)
+- `Ops` (addition, subtraction, etc.)
+- `Summary` (sum, mean, etc.)
+- `Complex` (functions for working with complex numbers)
+
+We can write a single function for each _group_ we wish to support.
+
+As well as overriding _existing_ generics, the S3 system makes it possible to define _new_ generics.
+
+We can define generics for calculating the `perimeter` and `area` of shapes.
+
+```{r s3_generics}
+perimeter <- function(shape) {
+  UseMethod("perimeter")
+}
+
+area <- function(shape) {
+  UseMethod("area")
+}
+```
+
+Create constructors for two shapes.
+
+```{r shape_constructors}
+new_rectangle <- function(w, h) {
+  structure(list(w = w, h = h), class = "rectangle")
+}
+
+new_ellipse <- function(w, h) {
+  structure(list(w = w, h = h), class = "ellipse")
+}
+```
+
+Provide implementations for each of the generics for each class.
+
+```{r shape_methods}
+print.rectangle <- function(shape, ...) {
+  cat("rectangle:", shape$w, "by", shape$h, "\n")
+}
+
+print.ellipse <- function(shape, ...) {
+  cat("ellipse:", shape$w, "by", shape$h, "\n")
+}
+
+perimeter.rectangle <- function(shape) {
+  shape$w * 2.0 + shape$h * 2.0
+}
+
+perimeter.ellipse <- function(shape) {
+  2 * pi * sqrt(((shape$w / 2.0) ** 2L + (shape$h / 2.0) ** 2L) / 2.0)
+}
+
+area.rectangle <- function(shape) {
+  shape$w * shape$h
+}
+
+area.ellipse <- function(shape) {
+  pi * (shape$w / 2.0) * (shape$h / 2.0)
+}
+```
+
+We can now calculate perimeter and area for both types of object.
+
+```{r use_generics}
+r <- new_rectangle(3.0, 2.0)
+e <- new_ellipse(3.0, 2.0)
+
+r
+e
+
+perimeter(r)
+perimeter(e)
+
+area(r)
+area(e)
+```
+
+We can also set up an inheritance chain using S3.
+
+```{r s3_inheritance}
+new_shape <- function(constructor, w, h) {
+  shape <- do.call(constructor, list(w = w, h = h))
+  structure(shape, class = c("shape", class(shape)))
+}
+
+print.shape <- function(shape, ...) {
+  NextMethod()
+  cat(shape$w, "by", shape$h, "\n")
+}
+
+print.rectangle <- function(shape) {
+  cat(">>>Rectangle: ")  
+}
+
+print.ellipse <- function(shape) {
+  cat(">>>Ellipse: ")  
+}
+
+r <- new_shape("new_rectangle", 3.0, 2.0)
+e <- new_shape("new_ellipse", 3.0, 2.0)
+
+print(r)
+print(e)
+
+perimeter(r)
+perimeter(e)
+```
+
+### Exercise: Create S3 pet class {.exercise}
+
+Create an S3 class that represents a pet. It should have a species, name, owner and date of birth. Provide constructor, validator and helper functions.
+
+Provide a generic `print` method for your pet class that displays the pet's details, including its _age_.
+
+## Working with APIs using R6
+
+R6 uses the encapsulated OOP paradigm---in contrast to the generics approach adopted by S3. The encapsulated paradigm will feel more natural to those coming from enterprise languages, such as Java.
+
+Objects in R6 are mutable. This means they are modified in place, as opposed to using copy-on-modify semantics. Mutation offers performance advantages, but introduces new classes of bugs that can't exist when using a pure functional approach. 
+
+R6 classes represent templates, from which objects are created.
+
+Let's create an R6 class that represents a bank account.
+
+```{r r6_bank_account}
+BankAccount <- R6::R6Class(
+  "BankAccount",
+  public = list(
+    balance = 0.0,
+    deposit = function(amount) {
+      self$balance <- self$balance + amount
+      
+      cat(paste0("The balance is now $", format(round(self$balance, 2L), nsmall = 2L)), "\n")
+    },
+    withdraw = function(amount) {
+      self$balance <- self$balance - amount
+
+      cat(paste0("The balance is now $", format(round(self$balance, 2L), nsmall = 2L)), "\n")
+    }
+  )
+)
+```
+
+By convention, we use title case for R6 classes.
+
+The class can now be used to stamp out bank account objects.
+
+```{r create_r6_bank_account_objects}
+my_account <- BankAccount$new()
+your_account <- BankAccount$new()
+
+my_account$deposit(100.0)
+my_account$withdraw(75.0)
+
+your_account$deposit(5.0)
+your_account$deposit(15.0)
+
+my_account$balance
+your_account$balance
+```
+
+There's a problem with the design of the `BankAccount` class---it breaks encapsulation.
+
+```{r broken_encapsulation}
+my_account <- BankAccount$new()
+my_account$balance <- 1e9
+
+my_account$balance
+```
+
+Users can bypass the carefully crafted API and change the balance directly. Ideally, the only way to change the balance should be through deposits and withdrawals---as in the real world.
+
+R6 classes can have private fields/methods. We can make the `balance` private.
+
+```{r private_bank_balance}
+BankAccount <- R6::R6Class(
+  "BankAccount",
+  public = list(
+    get_balance = function() {
+      private$balance
+    },
+    deposit = function(amount) {
+      private$balance <- private$balance + amount
+      
+      private$report_balance()
+    },
+    withdraw = function(amount) {
+      private$balance <- private$balance - amount
+
+      private$report_balance()
+    }
+  ),
+  private = list(
+    balance = 0.0,
+    report_balance = function() {
+      cat(paste0("The balance is now $", format(round(private$balance, 2L), nsmall = 2L)), "\n")
+    }
+  )
+)
+```
+
+Now the `balance` can't be manipulated directly.
+
+```{r working_encapsulation}
+#| eval: false
+my_account <- BankAccount$new()
+my_account$balance <- 1e9
+
+my_account$balance
+```
+
+We can only alter `balance` through the agreed API.
+
+```{r using_the_api}
+my_account <- BankAccount$new()
+my_account$deposit(100.0)
+my_account$withdraw(75.0)
+my_account$get_balance()
+```
+
+A private (helper) method, `report_balance` was also added. This isn't needed outside the class, so it can be private. Your public API should provide a minimal set of methods that are required to use the objects effectively. Hide anything your users don't need.
+
+R6 classes can also have an `initialize` method. This is known as _constructor_ in other OOP languages.
+
+```{r r6_initialize}
+BankAccount <- R6::R6Class(
+  "BankAccount",
+  public = list(
+    initialize = function(starting_balance = 0) {
+      private$balance = starting_balance
+    },
+    get_balance = function() {
+      private$balance
+    },
+    deposit = function(amount) {
+      private$balance <- private$balance + amount
+      
+      private$report_balance()
+    },
+    withdraw = function(amount) {
+      stopifnot(private$balance >= amount)
+      
+      private$balance <- private$balance - amount
+
+      private$report_balance()
+    }
+  ),
+  private = list(
+    balance = 0,
+    report_balance = function() {
+      cat(paste0("The balance is now $", format(round(private$balance, 2), nsmall = 2)), "\n")
+    }
+  )
+)
+```
+
+This allows us to provide an initial balance (e.g. as part of a special offer to those moving banks).
+
+```{r use_initialize}
+my_account <- BankAccount$new(100.0)
+my_account$deposit(1.0)
+my_account$get_balance()
+```
+
+Note that there's also a check to ensure account holders can't withdraw more than that have in their accounts. This is how we enforce business logic in OOP.
+
+You can also supply a `finalize` method, which is run when the object is destroyed. This can be used to clean up temporary files, etc.
+
+R6 classes support inheritance through subclassing.
+
+```{r subclassing}
+SavingsAccount <- R6::R6Class(
+  "SavingsAccount",
+  inherit = BankAccount,
+  public = list(
+    initialize = function(...) {
+      super$initialize(100, ...)
+    }
+  )
+)
+
+CurrentAccount <- R6::R6Class(
+  "CurrentAccount",
+  inherit = BankAccount,
+  public = list(
+    initialize = function(overdraft = 0, ...) {
+      private$overdraft <- overdraft
+      
+      super$initialize(...)
+    },
+    withdraw = function(amount) {
+      stopifnot(private$balance + private$overdraft >= amount)
+      
+      private$balance <- private$balance - amount
+    }
+  ),
+  private = list(
+    overdraft = 0
+  )
+)
+
+my_account <- SavingsAccount$new()
+my_account$get_balance()
+
+your_account <- CurrentAccount$new(overdraft = 50)
+your_account$withdraw(40)
+your_account$get_balance()
+```
+
+Subclassing tightly couples you classing into a hierarchy, which can result in a lot of work if you want to change the relationships. For that reason, many developers prefer _composition_ over subclassing.
+
+```{r composition}
+SavingsAccount <- R6::R6Class(
+  "SavingsAccount",
+  public = list(
+    initialize = function(starting_balance = 0, ...) {
+      private$bank_account = BankAccount$new(starting_balance = 100, ...)
+    },
+    get_balance = function() {
+      private$bank_account$get_balance()
+    },
+    deposit = function(...) {
+      private$bank_account$deposit(...)
+    },
+    withdraw = function(...) {
+      private$bank_account$withdraw(...)
+    }
+  ),
+  private = list(
+    bank_account = NULL
+  )
+)
+
+my_account <- SavingsAccount$new(100)
+my_account$withdraw(75)
+my_account$get_balance()
+```
+
+If you are looking to use R6 to define large applications, you may wish to learn about [software design patterns](https://en.wikipedia.org/wiki/Software_design_pattern).
+
+### Exercise: Create R6 data reader classes {.exercise}
+
+Implement the following class hierarachy using R6. The `DataReader` should read RDS files, by default.
+
+Using `janitor` to clean the column names.
+
+```{mermaid}
+classDiagram
+  class DataReader {
+    +tibble data
+    +read(path) 
+    +get_size()
+    +get_clean_column_names()
+  }
+  class CsvReader {
+    +read(path)
+  }
+  class ParquetReader {
+    +read(path)
+  }
+  DataReader --> CsvReader
+  DataReader --> ParquetReader
+```
+
+## Using S4 to improve the design of large applications
+
+S4 is similar to S3---it delivers OO through generics. However, it's much less _laissez faire_ than S3, which makes it more suitable for large projects. It's unforgiving nature can make it harder to get started with.
+
+The Bioconductor project makes extensive use of S4, and probably represents the bulk of the expertise with the system. It contains 2300 bioinformatics packages, so, at that scale, the greater formality has value in maintaining consistency and quality.
+
+`lubridate` periods are S4 objects.
+
+```{r s4_lubridate}
+one_second <- lubridate::period(1)
+sloop::otype(one_second)
+```
+
+S4 classes are defined using the `setClass` function.
+
+```{r create_s4_class}
+setClass(
+  "Person",
+  slots = list(
+    given_name = "character",
+    family_name = "character",
+    email = "character"
+  )
+)
+
+jane <- new(
+  "Person",
+  given_name = "Jane",
+  family_name = "Doe",
+  email = "jane.doe@example.com"
+)
+
+jane
+```
+
+As with S3 classes, the convention is to use title case for S4 classes.
+
+It's a best practice to define default values for slots, via a prototype.
+
+```{r supply_prototype}
+setClass(
+  "Person",
+  slots = list(
+    given_name = "character",
+    family_name = "character",
+    email = "character"
+  ),
+  prototype = list(
+    given_name = NA_character_,
+    family_name = NA_character_,
+    email = NA_character_
+  )
+)
+
+jane <- new("Person", given_name = "Jane")
+jane
+
+```
+
+We can get the class of an S4 object and query its slots.
+
+```{r query_slots}
+sloop::otype(jane)
+is(jane)
+jane@email
+```
+
+Note the use of the `@` symbol, as opposed to the `$` in R6.
+
+S4 objects are mutable.
+
+```{r mutate_s4_object}
+jane@family_name <- "Smith"
+jane
+```
+
+Best practice is to only use the `@` syntax in your own methods. External access should be via (generic) accessor functions.
+
+```{r define_accessor}
+setGeneric("family_name", function(x) {
+  standardGeneric("family_name")
+})
+
+setGeneric("family_name<-", function(x, value) {
+  standardGeneric("family_name<-")
+})
+
+setMethod("family_name", "Person", function(x) {
+  x@family_name
+})
+
+setMethod("family_name<-", "Person", function(x, value) {
+  x@family_name <- value
+  x
+})
+```
+
+We can now use the accessor methods to access `family_name`.
+
+```{r use_accessor_methods}
+jane <- new(
+  "Person",
+  given_name = "Jane",
+  family_name = "Doe",
+  email = "jane.doe@example.com"
+)
+
+family_name(jane) <- "Smith"
+family_name(jane)
+```
+
+Using `new` to create objects should be reserved for the class developer. Provide a helper function for your users.
+
+```{r s4_helper}
+Person <- function(given_name, family_name, email = NA_character_) {
+  new(
+    "Person",
+    given_name = given_name,
+    family_name = family_name,
+    email = email
+  )
+}
+
+jane <- Person(
+  given_name = "Jane",
+  family_name = "Doe"
+)
+
+jane
+```
+
+Because you have defined the types of the slots, you get automatic _type_ validation with S4 classes.
+
+```{r s4_type_checking}
+#| eval: false
+jane <- Person(
+  given_name = "Jane",
+  family_name = "Doe",
+  email = FALSE
+)
+```
+
+If you need more sophisticated validation, you have to provide a validator.
+
+```{r s4_validator}
+setValidity(
+  "Person",
+  function(x) {
+    cat(length(x@email), "\n")
+    
+    if (!is.na(x@email) && !grepl("@", x@email)) {
+      "@email is invalid"
+    } else {
+      TRUE
+    }
+  }
+)
+
+jane <- Person(
+  given_name = "Jane",
+  family_name = "Doe",
+  email = "jane.doe@example.com"
+)
+```
+
+To derive a class from another class in S4, we use `contains`.
+
+```{r s4_inheritance}
+setClass(
+  "Employee",
+  slots = list(title = "character", tenure_years = "integer"),
+  prototype = list(title = NA_character_, tenure_years = NA_integer_),
+  contains = "Person"
+)
+
+Employee <- function(
+    given_name,
+    family_name,
+    email = NA_character_,
+    title = NA_character_,
+    tenure_years = NA_integer_
+) {
+  new(
+    "Employee",
+    given_name = given_name,
+    family_name = family_name,
+    email = email,
+    title = title,
+    tenure_years = tenure_years
+  )
+}
+
+jane <- Employee(
+  given_name = "Jane",
+  family_name = "Doe",
+  email = "jane.doe@example.com",
+  tenure_years = 3L
+)
+
+jane@tenure_years
+```
+
+## Unifying systems through S7
+
+[S7](https://rconsortium.github.io/S7/articles/S7.html) is an attempt to create a successor to S3 and S4 by combining the best of both. More structure than S3, but easier to use than S4. It's built on top of S3, so all S7 objects are S3 object, helping with backward compatibility.
+
+Because it's built on S3, it's still very different to the encapsulated approach used by R6. So, if you prefer that model, R6 will remain the correct path.
+
+S7 is still a work in progress, and documentation is still sketchy, so it's _not_ recommended to use it in production settings.
+
+The following code defines a bank account class using S7.
+
+```{r s7_bank_account}
+bank_account <- S7::new_class(
+  "bank_account",
+  properties = list(
+    balance = S7::class_double
+  )
+)
+
+my_account <- bank_account(balance = 0)
+
+class(my_account)
+S7::S7_class(my_account)
+
+my_account@balance
+
+my_account@balance <- 100
+my_account@balance
+```
+
+## Summary
+
+In this module, we learned how to improve our program designs using OOP techniques.

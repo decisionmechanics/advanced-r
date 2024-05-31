@@ -1,0 +1,373 @@
+---
+title: "Efficient code"
+---
+
+R developers are often less concerned with squeezing performance out of their code than other developers. Languages like Rust tend to be used in performance critical applications, like web servers.
+
+It's also less common to see R code in production. R is often used to produce scripts that are used for one-off tasks.
+
+However, even when writing scripts for a one-off project, you may be running those scripts many times, and scripts that take a long time to run are distracting.
+
+As we move into the worlds of big data, and simulation (e.g. ML, Bayesian inference) performance also comes to the fore. These models can take hours to run. In these cases, library developers tend to turn to C (or, increasingly, Rust) to squeeze performance. R then becomes more of an orchestration tool.
+
+Efficiency is not just about how quickly your code runs. It's able the entire lifecycle of your project. If it's a one-off script, on a medium-sized dataset, there's probably little to be gained by tweaking your script for performance. Avoid **premature optimisation**.
+
+However, you can often gain performance improvements, with no extra effort, just by following best practices and using modern libraries.
+
+In this module we learn how to improve the performance and memory utilisation of our R code.
+
+## Unit testing and performance optimisations
+
+Performance improvements tend to involve taking existing, working code and rewriting (refactoring) it, generally in more complicated ways, to make it faster.
+
+It's easy to break your code when you do this...so your performance optimisations end delivering the wrong thing, but faster.
+
+Unit tests can help prevent this. Once your tests are passing, you can confidently refactor your code knowing that, if you make a mistake, the tests will catch it.
+
+The lesson here is that best-practices usually feed off each other. Doing things correctly pays dividends in all sorts of ways.
+
+## Benchmarking
+
+If you a script that is running too slowly for your needs, the first thing you need to know is where the opportunities for improving it are. To do that, you need to know where the time is being taken. There's little point improving code that is taking up < 1% of your total run-time. Where are the big wins to be found?
+
+It's dangerous to guess. Fortunately, we don't have to---we can profile the code. Profiling is basically timing your code to see how quickly it runs.
+
+We can use R to time individual statements. Let's time reading some free trade agreement data from an Excel workbook.
+
+```{r timing_excel_import}
+bench::bench_time(
+  readxl::read_excel(
+    here::here("data-raw/1. UK tariffs data for UK-Japan Free Trade Agreement.xlsx"),
+    sheet = "tariffs schedule"
+  )
+)
+```
+  
+What about reading it from a parquet file?
+  
+```{r timing_parquet_import}
+bench::bench_time(
+  arrow::read_parquet(here::here("data-raw/uk-japan-free-trade-agreement.parquet"))
+)
+```
+
+Or from an RDS file?
+  
+```{r timing_rds_import}
+bench::bench_time(
+  readRDS(here::here("data-raw/uk-japan-free-trade-agreement.rds"))
+)
+```
+
+This demonstrates a very practical way of getting performance improvements in your workflow. Convert your source data from slow formats, like Excel and CSV, to faster formats, such as parquet or DuckDB.
+
+### Exercise: Benchmarking CSV imports {.exercise}
+
+Write one of the datasets out as a CSV file and time has long it takes to read it back in. How does that compare to Excel and parquet?
+
+## Profiling
+
+Benchmarking individual statements is useful if you are trying to compare two different functions, but it's of limited use when looking at real-world applications. If we have a script with hundreds of lines, where do we focus our attention?
+
+R has a built-in tool for profiling applications---`Rprof`. We can use it directly, but it's utilised by the [`profvis`](https://rstudio.github.io/profvis/index.html) package which makes it easy to review the results.
+
+`Rprof` is a sampling profiler, which means it looks at the call stack periodically to see what code is currently running. This means that it may never see functions which don't take up much time. That's fine---they aren't the ones slowing us down. The benefit of a sampling profiler is that it doesn't add much overhead, so the results tend to be more accurate.
+
+The following data-viz example is adapted from the `profvis` documentation.
+
+```{r diamond_model}
+plot_diamond_model <- function() {
+  data(diamonds, package = "ggplot2")
+  
+  plot(price ~ carat, data = diamonds)
+  m <- lm(price ~ carat, data = diamonds)
+  abline(m, col = "red")
+}
+
+plot_diamond_model()
+```
+
+To profile this, we can enter the code in the script and use RStudio's **Profile** menu.
+
+![RStudio Profile menu](images/profile-menu.png)
+
+Alternatively, we can using the following code.
+
+```{r profiling}
+profvis::profvis(plot_diamond_model())
+```
+
+This produces a report that contains a flame graph, showing us where our code is spending most of its time. In this case, the time is being spent plotting all those points, so speeding up the `lm` fitting wouldn't be of much value. If we want to speed this up significantly, we need to look at what we can do about the plotting.
+
+Let's profile another example---some trade in goods data. The following code loads and plots the data.
+
+```{r trade_in_goods_model}
+plot_trade_in_goods_trend <- function() {
+  df <- arrow::read_parquet(here::here("data-raw/trade-in-goods.parquet")) |> 
+    dplyr::filter(flow == "Exports") |> 
+    dplyr::group_by(year) |> 
+    dplyr::summarise(value = sum(value)) |> 
+    dplyr::arrange(year)
+  
+  m <- lm(value ~ year, data = df)
+  slope <- m$coefficients[[2]]
+  intercept <- m$coefficients[[1]]
+  
+  df |>
+    ggplot2::ggplot(ggplot2::aes(x = year, y = value)) +
+      ggplot2::geom_point() +
+      ggplot2::geom_abline(slope = slope, intercept = intercept, col = "red")
+}
+
+plot_trade_in_goods_trend()
+```
+
+Generate the profile visualisation.
+
+```{r profiling_trade_in_goods_model}
+profvis::profvis(plot_trade_in_goods_trend())
+```
+
+In this example, the chart is pretty simple, so the time taken is dominated by reading the data from the disk. So, in _this_ example, we'd focus on the data I/O first.
+
+## Using vectorisation instead of loops
+
+Vectorised operators are usually faster in R as they are often implemented in C. Writing efficient R code is closely coupled to writing vectorised R code.
+
+Let's compare the performance of vectorised operations against for-loops. We can create a simple function for converting Fahrenheit temperatures to Celsius.
+
+```{r fahrenheit_to_celcius}
+fahrenheit_to_celcius <- function(fahrenheit) (fahrenheit - 32.0) * 5.0 / 9.0
+```
+
+How long does a vector calculation take?
+
+```{r timing_vector_calculation}
+bench::bench_time(fahrenheit_to_celcius(32:212))
+```
+
+What about a for-loop?
+
+```{r timing_for_loop}
+convert_temperatures <- function(fahrenheit) {
+  celcius <- double(length(fahrenheit))
+  
+  for (i in seq_along(fahrenheit)) {
+    celcius[[i]] <- fahrenheit_to_celcius(fahrenheit[[i]])
+  }
+  
+  celcius
+}
+
+bench::bench_time(convert_temperatures(32:212))
+```
+
+R has many packages and functions that can speed up your code. After you've profiled your code and found the weak areas, do some research into how others have solved similar problems. It can lead you to functions you didn't even know existed.
+
+## Memory profiling
+
+Consider the following (poor) code.
+
+```{r too_much_copying}
+poorly_generate_1_to_n <- function(n) {
+  x <- numeric()
+  
+  for (i in seq_len(n)) {
+    x <- c(x, i)
+  }
+  
+  x
+}
+```
+
+Here we generate a sequence of numbers (1:n) in a convoluted way that involves a lot of copying.
+
+Generate a sequence of 10,000 numbers.
+
+```{r cause_gc}
+poorly_generate_1_to_n(1e4)
+```
+
+It's very slow. Let's profile it.
+
+```{r profile_gc}
+profvis::profvis(poorly_generate_1_to_n(1e4))
+```
+
+Notice that the flame graph is dominated by <GC>. This means that the garbage collector is taking up more time than our code! A clue that we're create way too many temporary objects.
+
+The data tab of the profile report shows that we are grabbing and releasing a lot of memory. This confirms what the frame graph was suggesting.
+
+Remember to consider closures in memory usage. Consider the following function that uses a Monte Carlo simulation to estimate $\pi$ and captures it for use in an area calculating function.
+
+```{r circle_area_calculator}
+make_circle_area_calculator <- function(iterations = 1e5L, clean_up = FALSE) {
+  inside_unit_circle <- function(x, y) {
+    x ** 2.0 + y ** 2.0 < 1.0
+  }
+  
+  x_values <- runif(iterations)
+  y_values <- runif(iterations)
+  
+  pi_estimate <- (purrr::map2_lgl(x_values, y_values, inside_unit_circle) |> mean()) * 4.0
+
+  if (clean_up) {
+    rm(x_values, y_values)
+  }
+  
+  \(r) pi_estimate * r ** 2  
+}
+```
+
+We can create an area calculator and use it.
+
+```{r retain_closure_working}
+#| eval: false
+calculate_area_1 <- make_circle_area_calculator()
+calculate_area_1(2)
+
+lobstr::obj_size(calculate_area_1)
+```
+
+But look how much memory it's using! This is because it's holding on to the temporary data it used to estimate $\pi$. Once we have the estimate, we can throw away our working.
+
+```{r discard_closure_working}
+#| eval: false
+calculate_area_2 <- make_circle_area_calculator(clean_up = TRUE)
+calculate_area_2(2)
+
+lobstr::obj_size(calculate_area_2)
+```
+
+That's orders of magnitude more efficient in terms of memory usage.
+
+### Exercise: Profile your code {.exercise}
+
+Create a profile report from some of your own code? Look at execution time and memory usage. Did anything surprise you?
+
+If you don't have you own code, profile the `tweak-data.R` script.
+
+## Efficient data structures
+
+A sure way to kill performance in R code is to make a lot of unnecessary copies. R's copy-on-modify semantics make this easy to do accidentally if you write procedural code. If you follow established patterns you are less likely to make this mistake.
+
+If you use OOP you are, in effect, opting out of copy-on-modify, so it's something to consider if you need to mutate a lot of data. However, remember that you can still avoid most of these problems with the _correct_ application of functional programming techniques.
+
+If you are working with 2-D tables of numbers, consider using a matrix rather than a data frame. Operations on matrices are heavily optimised. In addition, you might be able to use matrix algebra in some calculations.
+
+When you have character vectors that are really categories, consider casting them to be factors. R already optimises the storage of strings, but you can still get some benefits when you tailor it to your specific use case.
+
+If you are storing a lot of integers, the default `numeric` type is wasteful. Convert them to the `integer` type. Be careful about implicit coercion.
+
+Don't use named vectors when you never need the names. It adds overhead.
+
+Cache data whenever it makes sense. Don't have data pipelines that read the data from the file every time. Don't do the same work twice. Break your code up into segments so that downstream pipelines can draw on earlier results that are common to all.
+
+When working with large datasets, `data.table` is more efficient than data frames or tibbles. New tools, like [DuckDB](https://duckdb.org), are also starting to deliver impressive performance benefits with large datasets.
+
+## Parallelisation
+
+As we started hitting limits of [Moore's Law](https://en.wikipedia.org/wiki/Moore's_law), we entered the era of multi-core computing. Even our phones have multiple processing cores now. To use all this power, we need to run our code in parallel---simulatenously across different cores.
+
+R already makes use of the parallel capabilities of modern processors. If you are doing a lot of linear algebra, you would make sure that your computer has a [Basic Linear Algebra Subroutines](https://en.wikipedia.org/wiki/Basic_Linear_Algebra_Subprograms) (BLAS) library that is optimised for your chipset. [Intel](https://www.intel.com/content/www/us/en/developer/tools/oneapi/onemkl.html), [AMD](https://www.amd.com/en/developer.html) and [Apple](https://developer.apple.com/documentation/accelerate) all provide libraries.
+
+If you are doing a _lot_ of heavy linear algebra calculations in your work, you definitely want to ensure you have the correct BLAS libraries installed.
+
+Due to R's use of vector calculations and functional programming, there are often obvious opportunities to utilise parallel processing.
+
+R bundles the `parallel` package which offers a `mclapply`. This is similar to the venerable `lapply`, but, while `lapply` can only use a single core, `mclapply` will take advantage of as many cores as you're willing to give it.
+
+How many cores do you have available?
+
+```{r count_cores}
+parallel::detectCores(logical = FALSE)
+```
+
+We can estimate $\pi$ in parallel.
+
+```{r estimate_pi}
+estimate_pi <- function(iterations = 1e5L) {
+  inside_unit_circle <- function(x, y) {
+    x ** 2.0 + y ** 2.0 < 1.0
+  }
+
+  x_values <- runif(iterations)
+  y_values <- runif(iterations)
+
+  (purrr::map2_lgl(x_values, y_values, inside_unit_circle) |> mean()) * 4.0
+}
+
+TIMES <- 100L
+```
+
+First, let's do it all using a single core.
+
+```{r estimate_pi_sequentially}
+#| eval: false
+mean(unlist(lapply(rep(1e5L, times = TIMES), estimate_pi)))
+
+bench::bench_time(mean(unlist(lapply(rep(1e5L, times = TIMES), estimate_pi))))
+```
+
+Now consider the benefits we get from running across four cores.
+
+```{r estimate_pi_concurrently}
+#| eval: false
+mean(unlist(parallel::mclapply(rep(1e5L, times = TIMES), estimate_pi, mc.cores = 4)))
+
+bench::bench_time(
+  mean(unlist(parallel::mclapply(rep(1e5L, times = TIMES), estimate_pi, mc.cores = 4)))
+)
+```
+
+While the `parallel` library gives us the flexibility to manually run our code on multiple cores, most packages that can benefit from parallelism will provide direct support for it.
+
+Bootstrapping is a computationally intensive technique that is trivially parallelisable. The `boot` package provides direct support for running across multiple cores.
+
+```{r bootstrapping}
+iqs <- rnorm(20, mean = 100, sd = 16)
+
+boot_obj <- boot::boot(iqs, statistic = \(x, i) median(x[i]), R = 5000, parallel = "multicore", ncpus = 4)
+
+boot::boot.ci(boot_obj, type = "perc")
+
+plot(boot_obj)
+```
+
+## GPUs
+
+There are a number of R packages that utilise GPUs, but it's not possible to run R code directly on a GPU.
+
+## DuckDB
+
+DuckDB is a fast, in-process, analytical (OLAP) database. It can ingest large files files, in a variety of formats, and query them very efficiently. SQL is the native language of DuckDB.
+
+`duckplyr` is designed to be a drop-in replacement for `dplyr` that uses DuckDB as the back-end. This combines the familiarity of the `tidyverse` syntax with the speed and scalability of DuckDB.
+
+DuckDB builds query plans, allowing it to perform a range of optimisations before it executes the plan. For example, it can determine what columns are required to execute the plan and only read that data.
+
+The following code builds a query and displays the execution plan. At this point the data has not been imported.
+
+```{r duckdb}
+duckdb_df <- 
+  duckplyr::df_from_parquet(here::here("data-raw/trade-in-goods.parquet")) |> 
+  duckplyr::as_duckplyr_df() |> 
+  duckplyr::filter(country_name != "Switzerland") |> 
+  duckplyr::summarise(.by = year, value = sum(value))
+  
+duckdb_df |> 
+  duckplyr::explain()
+```
+
+`duckplyr` will only _materialise_ the plan when it has to show the data.
+
+```{r materialize_plan}
+duckdb_df |> 
+  tibble::as_tibble()
+```
+
+DuckDB's sophisticated query optimization engine means that it can analyse large volumes of data very quickly.
+
+## Summary
+
+In this module, we learned how to improve the performance and memory utilisation of our R code.

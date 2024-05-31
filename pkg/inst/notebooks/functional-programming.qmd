@@ -1,0 +1,930 @@
+---
+title: "Functional programming"
+---
+
+There are three major programming paradigms:
+
+- Procedural
+- Object-oriented
+- Functional
+
+Functional programming treats computation as the evaluation of mathematical functions and avoids changing state and mutable data. It emphasises the use of pure functions, immutability and higher-order functions. In functional programming, functions are considered first-class citizens and can be assigned to variables, passed as arguments, etc.
+
+R is a multi-paradigm language---it supports all three paradigms. However, it definitely has a functional bias, befitting its primary use in STEM domains.
+
+Benefits of functional programming include:
+
+- **Immutability**: By avoiding mutable state, functional programming reduces bugs and makes it easier to reason about code behavior.
+- **Modularity**: Pure functions and higher-order functions promote modular, reusable code, enhancing maintainability and readability.
+- **Concurrency**: Functional programming simplifies concurrent and parallel programming as immutable data structures eliminate race conditions.
+- **Predictability**: Pure functions produce the same output given the same input, improving predictability and ease of testing.
+- **Enhanced debugging**: Reduced side effects and reliance on pure functions make debugging and tracing code easier.
+
+In this module we learn the basics of functional programming in R, allowing us to write more elegant and maintainable code.
+
+## Pure functions
+
+Pure functions:
+
+- Return the same outputs, given the same inputs
+- Have no side-effects
+
+`square` is a pure function.
+
+```{r pure_function}
+square <- function(n) n ** 2L
+
+square(3L)
+```
+
+`get_random_number` is _not_ a pure function as it returns a different value when called with the same parameters.
+
+```{r impure_function}
+get_random_number <- function(minimum = 1L, maximum = 100L) runif(1, min = minimum, max = maximum)
+
+get_random_number()
+get_random_number()
+```
+
+`display_greeting` is _not_ a pure function as it has a side-effect.
+
+```{r side_effect}
+display_greeting <- function() cat("Hello!")
+
+display_greeting()
+``` 
+
+Try to isolate impure code.
+
+```{r isolate_impure_code}
+split_data <- function(df, train_prop = 0.7) {
+  row_count <- nrow(df)
+  train_row_count = as.integer(row_count * train_prop)
+  train_row_indexes = sample.int(row_count, size = train_row_count)
+  
+  list(train = df[train_row_indexes, ], test = df[-train_row_indexes, ])
+}
+
+split_data(mtcars)
+```
+
+If we isolate the randomness (in `get_row_indexes`), `get_row_count` and `select_splits` become much easier to debug and test.
+
+```{r isolate_randomness}
+get_row_count <- function(df, prop) as.integer(nrow(df) * prop)
+
+get_row_indexes <- function(df, train_row_count) {
+  sample.int(nrow(df), size = train_row_count)
+}
+
+select_splits <- function(df, train_row_indexes) {
+  list(train = df[train_row_indexes, ], test = df[-train_row_indexes, ])
+}
+
+split_data <- function(df, train_prop = 0.7) {
+  train_row_count = get_row_count(df, prop = train_prop)
+  select_splits(df, get_row_indexes(df, train_row_count = train_row_count))
+}
+
+split_data(mtcars)                       
+```
+
+### Exercise: Refactor a function to isolate impure elements {.exercise}
+
+Create a function, `greet` that takes someone's name as a parameter and displays a greeting based on the time of day (e.g. "Good evening, Jane.")
+
+Refactor this function to have _as much code as possible_ in a pure function.
+
+## Copy on modify
+
+Pure, or functional-first, functional languages tend to enforce immutability by default. R doesn't have these strong guarantees, but, in most cases, it does treat data as immutable.
+
+The mechanism used to achieve this in R is know as copy-on-modify.
+
+If we bind an atomic vector to two different names, they refer to the same object in memory.
+
+```{r same_object}
+x <- c(1L, 2L, 3L)
+y <- x
+
+lobstr::obj_addr(x)
+lobstr::obj_addr(y)
+```
+
+If we that change an element in that vector, using one of the bindings, R will, _at that point_, make a copy of the entire vector and bind the name to that copy.
+
+```{r copy_on_modify}
+y[[1L]] <- 0L
+x
+y
+lobstr::obj_addr(x)
+lobstr::obj_addr(y)
+```
+
+`tracemem` can be used to monitor when an object is copied.
+
+```{r tracemem}
+x <- c(1L, 2L, 3L)
+tracemem(x)
+y <- x
+y[[1]] <- 0L
+untracemem(x)
+```
+
+If there's only one binding to an object, R is smart enough to know that it doesn't need to make a copy. **You must run this directly in the terminal** as the RStudio environment pane makes a reference to each object. 
+
+```{r single_binding}
+x <- c(1L, 2L, 3L)
+tracemem(x)
+x[[1L]] <- 0L
+untracemem(x)
+```
+
+Consider the following example. If you run this in the terminal, you'll see a copy is made. Why is this?
+
+```{r type_conversion_copy}
+x <- c(1L, 2L, 3L)
+class(x)
+tracemem(x)
+x[[1L]] <- 0L
+class(x)
+untracemem(x)
+```
+
+We assigned a `numeric` value to an `integer` vector. This required creating a vector with the new type.
+
+Copying large amounts of data can be inefficient, so it's important to be aware of the real-world consequences of this. 
+One issue occurs with data frames, which are lists of vectors. In the following code, we modify a single column, so only that column needs to be copied.
+
+```{r copy_column}
+df <- mtcars
+df[, 1L] <- df[, 1L] + 1.0
+lobstr::obj_addr(mtcars[, 1L])
+lobstr::obj_addr(df[, 1L])
+lobstr::obj_addr(mtcars[, 2L])
+lobstr::obj_addr(df[, 2L])
+```
+
+Updating a single _row_ results in _every_ column needing to be copied.
+
+```{r copy_all_columns}
+df <- mtcars
+df[1L, ] <- df[1L, ] + 1.0
+lobstr::obj_addr(mtcars[, 1L])
+lobstr::obj_addr(df[, 1L])
+lobstr::obj_addr(mtcars[, 2L])
+lobstr::obj_addr(df[, 2L])
+```
+
+### Exercise: Storing character vectors {.exercise}
+
+R has a special way of handling character vectors.
+
+Run the following code.
+
+```{r string_refs}
+x <- rep("hello", times = 5L)
+lobstr::ref(x, character = TRUE)
+```
+
+What do you think is happening?
+
+## Anonymous functions
+
+Anonymous functions are functions that aren't named. All functions in R are anonymous. We "name" then using bindings. This is in contrast to other languages (e.g. Python) that don't treat functions as first class objects, so have a special syntax for naming them.
+
+```python
+def square(n):
+    return n**2
+```
+
+In R, we can define a function without binding it and immediately execute it.
+
+```{r immediate_function_execution}
+{function(x) x ** 2L}(3L)
+```
+
+Anonymous functions are often passed to higher-order functions, such as `vapply`.
+
+```{r passing_anonymous_functions}
+#! eval: false
+df <- arrow::read_parquet(here::here("data-raw/uk-japan-free-trade-agreement.parquet")) |> 
+  head(10L)
+
+vapply(df$preferential_duty_rate, function(rate) grepl("^[0-9]+%$", rate) , FUN.VALUE = TRUE)
+```
+
+R 4.1.0 introduced a lightweight function syntax that was designed for this kind of use.
+
+```{r anonymous_function}
+df <- arrow::read_parquet(here::here("data-raw/uk-japan-free-trade-agreement.parquet")) |> 
+  head(10L)
+
+vapply(df$preferential_duty_rate, \(rate) grepl("^[0-9]+%$", rate) , FUN.VALUE = TRUE)
+```
+
+Note that the anonymous functions don't any new behaviours. They are just syntactic sugar on top of the standard function syntax. The new syntax should be restricted to small functions (e.g. one line). If you are adding `{}` it usually makes more sense to have a bound function (in local scope).
+
+The tidyverse has succinct syntax for working with anonymous functions. The `.` place-holder is heavily used within `dplyr` and `purrr` uses the "tilde-dot" syntax (e.g. `~{.x + 10}`). However, the new native syntax is generally preferred moving forward.
+
+## Environments
+
+Expressions in R are evaluated within an environment. When you evaluate `x + y` you need to know the values that are bound to `x` and `y`. These bindings are determined by the environment.
+
+When we create a new R script, we are usually working in the global environment.
+
+```{r current_env}
+rlang::current_env()
+```
+
+We can examine the bindings associated with an environment.
+
+```{r examine_env}
+rlang::env_print(rlang::global_env())
+```
+
+This can also be done by selecting the environment via a dropdown in the Environment panel (see @fig-changing-environments)
+
+![Changing environments](images/changing-environments.png){#fig-changing-environments}
+
+The global environment is not the root environment.
+
+```{r env_parents}
+rlang::env_parents(rlang::global_env())
+```
+
+Loading a library creates an environment for that library.
+
+There is a _chain_ of environments that always ends in an empty environment.
+
+```{r empty_env}
+rlang::empty_env()
+```
+
+When R needs to find the value of a variable, it walks the chain of environments until it finds a match. You have probably seen warnings in R when you load a library telling you that some objects have been masked by the new library. As the new library's environment will now be earlier in the chain, its values will be found before any previously loaded library.
+
+You can create custom environments and execute code within them.
+
+```{r custom_envs}
+env1 <- rlang::env(x = 1L, y = 1L, a = 5L)
+env2 <- rlang::env(env1, x = 10L, y = 10L, b = 7L)
+
+rlang::env_parents(env2, last = rlang::base_env())
+
+evalq(x + y, envir = env1)
+evalq(x + y, envir = env2)
+evalq(x + b, envir = env2)
+evalq(x + a, envir = env2)
+
+tryCatch(evalq(x + b, envir = env1), error = \(e) message("b isn't in scope"))
+```
+
+## Environments and functions
+
+Environments play a significant role in the evaluation of functions. Functions are assigned their own local environment.
+
+```{r function_env}
+x <- 1L:3L
+
+f <- function(x) {
+  result <- x ** 2L
+  
+  as.list(environment())
+}
+
+f(x * 2L)
+
+as.list(environment())
+```
+
+Functions can access values in their parent environments.
+
+```{r parent_scope}
+x <- 1L:3L
+
+f <- function() {
+  cat(x)
+}
+
+f()
+```
+
+You can also access values in the parent environment if they are masked by a formal parameter.
+
+```{r override_masking}
+x <- 99L
+
+f <- function(x) {
+  cat(parent.frame()$x)
+}
+
+f(1)
+```
+
+When function definitions are nested, each function adds its local environment to the chain.
+
+```{r nested_function_envs}
+a <- function() {
+  b <- function() {
+    c <- function() {
+      d <- function() {
+        rlang::env_parents(last = rlang::base_env())
+      }
+      
+      d()
+    }
+    
+    c()
+  }
+  
+  b()
+}
+
+a()
+```
+
+Parent environments are determined by where the function is defined---not where it's called from.
+
+```{r env_vs_call_stack}
+a <- function() b()
+b <- function() c()
+c <- function() d()
+d <- function() {
+  rlang::env_print()
+  lobstr::cst()
+}
+
+a()
+
+# Delete functions, if they exist. Prevents an error if re-run.
+rm("a", "b", "c", "d")
+```
+
+## Lazy evaluation
+
+R uses lazy evaluation. Expressions are only evaluated when the values are required.
+
+```{r lazy_evaluation}
+f <- function(a, b) {
+  a + 1L
+}
+
+f(1L, stop("this won't happen"))
+```
+
+Lazy evaluation means default function parameters can also be defined in terms of other parameters.
+
+```{r lazy_evaluated_parameter}
+sample <- function(df, n = nrow(df)) {
+  if (!is.integer(n)) {
+    stop("n must be an integer")
+  }
+  
+  cat("row count = ", n)
+}
+
+sample(mtcars)
+```
+
+Bear in mind that the following won't work. Why?
+
+```{r invalid_lazy_evaluation}
+tryCatch(sample(df = mtcars, n = nrow(df)), error = print)
+```
+
+## Closures
+
+Closures are functions that capture their environments. In R, and many other languages, every function is technically a closure. However, the term tends to refer to functions that use values that aren't passed via formal parameters.
+
+Consider the following `add_sales_tax` function.
+
+```{r sales_tax_calculations}
+add_sales_tax <- function(price, percentage) price * (1.0 + percentage / 100.0)
+
+add_sales_tax(100.0, 20.0) # UK
+add_sales_tax(100.0, 4.0) # NY
+```
+
+We can use a closure to create simpler functions for given jurisdictions.
+
+```{r closure}
+make_sales_tax_calculator <- function(percentage) {
+  \(price) add_sales_tax(price, percentage)
+}
+
+add_uk_sales_tax = make_sales_tax_calculator(20.0)
+add_ny_sales_tax = make_sales_tax_calculator(4.0)
+
+add_uk_sales_tax(100.0)
+add_ny_sales_tax(100.0)
+```
+
+Here's another example from a real-world project. `format_number` supports a range of number formatting strategies. It has a few parameters, so is a little unwieldy. Using the power of closures, we can define a simple factory function (`make_number_formatter`) to stamp out utility functions that are much easier to use.
+
+```{r format_number}
+format_number <- function(n, significant_digits = NULL, decimal_places = NULL, prefix = NULL, suffix = NULL) {
+  if (!is.null(significant_digits) && !is.null(decimal_places)) {
+    stop("connot specify significant digits and decimal places simulataneously")
+  }
+  
+  units <- NULL
+  
+  if (is.null(suffix)) {
+    if (n > 1e9) {
+      units <- "bn"
+      n <- n / 1e9
+    } else if (n > 1e6) {
+      units <- "m"
+      n <- n / 1e6
+    } else if (n > 1e3) {
+      units <- "k"
+      n <- n / 1e3
+    } 
+  }
+  
+  if (!is.null(significant_digits)) {
+    n <- signif(n, significant_digits)
+  }
+  
+  if (!is.null(decimal_places)) {
+    n > round(n, digits = decimal_places)
+  }
+  
+  paste0(prefix, n, units, suffix)
+}
+
+make_number_formatter <- function(...) \(n) format_number(n, ...)
+
+quantity_formatter = make_number_formatter(significant_digits = 3L)
+cost_formatter = make_number_formatter(significant_digits = 3L, prefix = "$")
+percentage_formatter = make_number_formatter(decimal_places = 1L, suffix = "%")
+
+quantity_formatter(1234567.0)
+cost_formatter(1234567.0)
+percentage_formatter(99.0)
+```
+
+Closures can be used to cache computationally expensive results without polluting the global environment.
+
+```{r caching_expensive_values}
+make_country_lookup <- function() {
+  countries <- arrow::read_parquet(here::here("data-raw/country-codes.parquet")) |> 
+    dplyr::relocate(country_alpha_code) |> 
+    tibble::deframe()
+
+  \(alpha_code) unname(countries[alpha_code])
+}
+
+lookup_country <- make_country_lookup()
+
+lookup_country("JP")
+lookup_country("GB")
+```
+
+You can also update values in the captured environment.
+
+```{r updating_captured_variables}
+make_accumulator <- function() {
+  total <- 0L
+  
+  function(x) {
+    total <<- total + x
+    
+    total
+  } 
+}
+
+accumulate <- make_accumulator()
+
+accumulate(1L)
+accumulate(2L)
+accumulate(3L)
+```
+
+Remember that closures hold on to everything in their environment---whether they need it or not. This prevents the garbage collector from recovering the memory.
+
+```{r cleaning_up_closures}
+f <- function(clean_up = FALSE) {
+  numbers = runif(100000L)
+  average = mean(numbers)
+  
+  if (clean_up) {
+    rm(numbers)
+  }
+    
+  \() average
+}
+
+g1 <- f()
+g1()
+
+g2 <- f(clean_up = TRUE)
+g2()
+
+lobstr::obj_size(g1)
+lobstr::obj_size(g2)
+```
+
+Delete what you don't need.
+
+When working with closures, remember that R uses lazy evaluation.
+
+```{r lazy_evalution_in_closures}
+make_sales_tax_calculator <- function(percentage) {
+  \(price) add_sales_tax(price, percentage)
+}
+
+sales_tax_percentage <- 20.0
+add_uk_sales_tax <- make_sales_tax_calculator(sales_tax_percentage)
+
+sales_tax_percentage <- 4.0
+add_ny_sales_tax <- make_sales_tax_calculator(sales_tax_percentage)
+
+add_uk_sales_tax(100.0)
+```
+
+Oops!
+
+One way to solve this is to `force` the evaluation of captured values.
+
+```{r forcing_captured_values}
+make_sales_tax_calculator <- function(percentage) {
+  force(percentage)
+  
+  \(price) add_sales_tax(price, percentage)
+}
+
+sales_tax_percentage <- 20.0
+add_uk_sales_tax <- make_sales_tax_calculator(sales_tax_percentage)
+
+sales_tax_percentage <- 4.0
+add_ny_sales_tax <- make_sales_tax_calculator(sales_tax_percentage)
+
+add_uk_sales_tax(100.0)
+add_ny_sales_tax(100.0)
+```
+
+### Exercise: Create a caching `is_prime` function {.exercise}
+
+Write a function to determine if a number is prime. Cache the results, using a closure, so they are only calculated once.
+
+Here are some large primes:
+
+- 240900587460139
+- 672098156521447
+- 827125888559209
+- 226534518593209
+- 886478142641929
+
+## Infix functions
+
+You can define your own infix operators in R. You have probably used one---the magrittr pipe (`%>%`).
+
+Here's an example that converts fractional betting odds to decimal odds using a new `%/%` operator.
+
+```{r custom_operator}
+`%/%` <- function(numerator, denominator) {
+  numerator / denominator + 1
+}
+
+5L %/% 4L
+4L %/% 9L
+```
+
+## Replacement functions
+
+Replacement functions appear to mutate their arguments. Here is an example that replaces missing values. Note that the formal parameters in the replacement function have to be `x` and `value`.
+
+```{r replacement_function}
+`clean_names<-` <- function(x, value) {
+  names(x) <- janitor::make_clean_names(value)
+  x
+}
+
+some_cars <- mtcars
+
+descriptions <- c(
+  "Miles/(US) gallon",
+  "Number of cylinders",
+  "Displacement (cu.in.)",
+  "Gross horsepower",
+  "Rear axle ratio",
+  "Weight (1000 lbs)",
+  "1/4 mile time",
+  "Engine (0 = V-shaped, 1 = straight)",
+  "Transmission (0 = automatic, 1 = manual)",
+  "Number of forward gears",
+  "Number of carburetors"
+)
+
+clean_names(some_cars) <- descriptions
+
+some_cars
+```
+
+## Recursion
+
+Recursion is a powerful technique in functional programming. It can produce elegant solutions to "divide and conquer" problems.
+
+Recursive functions must address two things.
+
+- How to solve the base case
+- Decomposing the recursive case into a simpler version of the same problem
+
+```{r recursion}
+decision_tree <- list(
+  question = "Is it a mammal?",
+  yes = list(
+    question = "Is it a carnivore?",
+    yes = list(
+      question = "Is it native to Africa?",
+      yes = list(
+        answer = "It's a lion!"
+      ),
+      no = list(
+        answer = "It's a polar bear!"
+      )
+    ),
+    no = list(
+      answer = "It's a moose!"
+    )
+  ),
+  no = list(
+    question = "Is it a reptile?",
+    yes = list(
+      answer = "It's a crocodile!"
+    ),
+    no = list(
+      answer = "It's a Great White Shark!"
+    )
+  )
+)
+
+print_tree <- function(tree, level = 0L, branch = "") {
+  if (rlang::has_name(tree, "question")) {
+    cat(strrep(" ", level * 2L), branch, tree$question, "\n")
+    print_tree(tree$yes, level = level + 1L, "Y:")
+    print_tree(tree$no, level = level + 1L, "N:")
+  } else {
+    cat(strrep(" ", level * 2L), "*", branch, tree$answer, "\n")
+  }
+}
+
+decision_tree |> 
+  print_tree()
+```
+
+R 4.4.0 has experimental support for tail-call optimisation, via `Tailcall`. This will allow R developers to use functional programming to tackle a much wider class of problems.
+
+### Exercise: Write a recursive factorial function {.exercise}
+
+Write a recursive factorial function. Check your results using the base R `factorial` function.
+
+How would you write this using a for-loop?
+
+## Lists of functions
+
+In R functions are just objects, like everything else, so they don't need special processing.
+
+```{r function_objects}
+fns = c(min, \(x) quantile(x, probs = 0.25), median, \(x) quantile(x, probs = 0.75),  max)
+```
+
+Note that this creates a _list_ of functions.
+
+```{r list_of_functions}
+class(fns)
+```
+
+Once we have a list of functions, we can use that as we would any list.
+
+```{r processing_function_list}
+values = runif(20L)
+
+for (fn in fns) {
+  cat(fn(values), "\n")
+}
+```
+
+Make sure you consider lazy evaluation if you are generating a list of closures.
+
+```{r lazy_evaluation_with_list_of_closures}
+adders <- vector("list", 10L)
+
+for (i in 1L:10L) {
+  adders[[i]] <- \(x) `+`(x, i)
+}
+
+adders[[1L]](99L)
+adders[[10L]](99L)
+```
+
+Force the evaluation of the parameter to use it's "current" value.
+
+```{r forcing_value_in_list_of_closures}
+adders <- vector("list", 10L)
+
+for (i in 1L:10L) {
+  adders[[i]] <- {function(b) {
+    force(b)
+    
+    \(a) `+`(a, b)
+  }}(i)
+}
+
+adders[[1L]](99L)
+adders[[10L]](99L)
+```
+
+## The apply family
+
+R has three commonly-used functions that "apply" functions to sequences.
+
+- `sapply`
+- `vapply`
+- `lapply`
+
+There are other members of this family (e.g. `tapply`), but they are less-commonly used.
+
+The apply functions are examples of higher-order functions---functions that take functions as parameters.
+
+It's recommended that `sapply` only be used for interactive sessions. `sapply` tries to simplify its result, meaning that what it returns is dependent on the context.
+
+```{r sapply}
+sapply(mtcars, mean)
+
+tibble::tibble(
+  a = c(1, 1, 1),
+  b = c(2, 2, 2)
+) |> 
+  sapply(unique) |> 
+  class()
+
+tibble::tibble(
+  a = c(1L, 2L, 2L),
+  b = c(3L, 4L, 4L)
+) |> 
+  sapply(unique) |> 
+  class()
+```
+
+`vapply` is a safer alternative to `sapply` as we explictly tell R what type of output we expect.
+
+```{r vapply}
+tibble::tibble(
+  a = c(1, 1, 1),
+  b = c(2, 2, 2)
+) |> 
+  vapply(unique, 0)
+
+tryCatch(
+  tibble::tibble(
+    a = c(1L, 2L, 2L),
+    b = c(3L, 4L, 4L)
+  ) |> 
+    vapply(unique, 0),
+  error = \(e) message(conditionMessage(e))
+)
+```
+
+`lapply` takes a list and returns a list. Like `vapply`, its behaviour is predictable.
+
+```{r lapply}
+lapply(mtcars, mean)
+```
+
+## `Filter`, `Map` and `Reduce`
+
+Filter, map and reduce are staple functions/operators/patterns in functional programming. They allow us to do much of what would be done with for-loops in procedural programming.
+
+`Filter` takes a sequence and a predicate (a function that returns a logical value), returning a sequence containing the values for which the predicate was true.
+
+```{r filter}
+Filter(\(x) x %% 2 == 0, 1:10)
+```
+
+`Map` is similar to the apply functions---it takes each item in a sequence and applies a function to it.
+
+```{r map}
+unlist(Map(\(x) x %% 2 == 0, 1:10))
+```
+
+`Reduce` takes a sequence of values and repeatedly applies a function to them to produce a single value. Some functional languages refer to it as "fold".
+
+```{r reduce}
+countries <- arrow::read_parquet(here::here("data-raw/country-codes.parquet")) |> 
+  dplyr::pull("country_name")
+
+NUM_GROUPS <- 3
+
+set.seed(4)
+
+group_df <- replicate(NUM_GROUPS, base::sample(countries, size = 50)) |>
+  tibble::as_tibble(.name_repair = "unique") |> 
+  dplyr::rename_with(~vapply(1:NUM_GROUPS, \(x) paste0("group_", x), ""))
+
+group_df |>
+  head(n = 3)
+
+Reduce(intersect, group_df)
+```
+
+### Exercise: Write a factorial function using `Reduce` {.exercise}
+
+Use `Reduce` to write factorial function. Check your results using the base R `factorial` function.
+
+Did you handle the degenerate case correctly?
+
+## Functional programming with `purrr`
+
+Base R's higher-order functions don't have a particularly consistent API. `purrr` is the tidyverse's attempt to improve the situation.
+
+There are two functions that replace `Filter`.
+
+```{r purrr_filter}
+purrr::keep(1:10, \(x) x %% 2 == 0)
+purrr::discard(1:10, \(x) x %% 2 == 0)
+```
+
+There are a number of map functions in `purrr`. There are designed to address to ambiguity about what their base R siblings return.
+
+- `map(.x, .f)` returns a list
+- `map_dbl(.x, .f)` returns a numeric vector
+- `map_lgl(.x, .f)` returns a logical vector
+- `map_chr(.x, .f)` returns a character vector
+- `map_df(.x, .f)` returns a tibble
+
+`.x` is either a vector, list or data frame. In the latter case, the map iterates over the columns.
+
+We can use the map functions in EDA.
+
+What types of data do we have in the columns?
+
+```{r purrr_map_chr}
+arrow::read_parquet(here::here("data-raw/uk-japan-free-trade-agreement.parquet")) |> 
+  purrr::map_chr(\(x) class(x)[1])
+```
+How many unique values do we have in each column?
+
+```{r purrr_map_dbl}
+arrow::read_parquet(here::here("data-raw/uk-japan-free-trade-agreement.parquet")) |> 
+  purrr::map_dbl(dplyr::n_distinct)
+```
+
+`purrr` is particularly powerful when working with nested data frames.
+
+```{r purrr_nested_df}
+trade_in_goods_df <- arrow::read_parquet(here::here("data-raw/trade-in-goods.parquet"))
+
+country_groups <- trade_in_goods_df |> 
+  dplyr::group_by(country_name) |> 
+  tidyr::nest()
+
+country_groups |> purrr::pluck("data", 1)
+
+country_groups |> 
+  dplyr::mutate(average_value = purrr::map_dbl(data, \(x) mean(x$value))) |> 
+  dplyr::select(-data)
+```
+
+There's also a `purrr` version of `Reduce`.
+
+```{r purrr_reduce}
+purrr::reduce(1:10, `+`)
+```
+
+### Exercise: Write a factorial function using `purrr::reduce` {.exercise}
+
+Use `purrr::reduce` to write a factorial function. Check it using the base R `factorial` function.
+
+## Functional style
+
+Hadley Wickham [identifies](https://adv-r.hadley.nz/fp.html) three key functional techniques that can help to build sophisticated behaviour from simple functions. These are illustrated in @fig-functional-style.
+
+![Functional style](images/functional-style.png){#fig-functional-style}
+
+**Functionals** allow a function defined for one value to be generalised over a sequence of values. We've seen this with the apply family.
+
+**Function factories** are functions that generate functions. Partial application (currying) is an example of this. R doesn't support currying, but the same effect can be achieved using standard function definitions.
+
+```{r currying}
+make_caption <- function(label, number) paste(label, number)
+
+make_figure_caption <- \(number) make_caption("Figure", number)
+make_table_caption <- \(number) make_caption("Table", number)
+
+make_figure_caption(1)
+make_table_caption(1)
+```
+
+**Function operators** can be used to create functions from other functions---creating more complex behaviour by combining simple building blocks. R doesn't directly support function composition, but it can be replicated using a pipeline.
+
+```{r function_composition}
+clean_text <- \(x) x |> stringr::str_trim() |> stringr::str_to_lower() |> stringr::str_replace_all("[^a-z]+", "_")
+
+clean_text("Hello, World\n")
+```
+
+## Summary
+
+In this module, we learned the basics of functional programming in R, allowing us to write more elegant and maintainable code.

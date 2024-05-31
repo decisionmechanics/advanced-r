@@ -1,0 +1,7 @@
+Please see attached 3 examples of datasets that we very typically handle (tariffs, trade in goods and trade in services):
+ 
+- UK tariffs data for UK-Japan Free Trade Agreement
+- UK trade in goods data (2017-2021)
+- UK trade in services data (2017-2021)
+ 
+I have provided UK data as it should be the most familiar for your team, and it's quite clean. I added a note explaining tariffs, but trade in goods and trade in services should be quite simple – they are basically goods and services imports and exports data of the UK with partner countries, for the provided product categories, over 2017-2021.

@@ -1,0 +1,24 @@
+---
+title: Shark incidents
+author: "Andrew Tait"
+date: "2024-01-01"
+output:
+  html_document:
+    theme:
+      bootswatch: vapor
+---
+
+We can plot the attacks on a map.
+
+```{r shark_incident_map, echo=FALSE, fig.width=10, fig.asp=0.8}
+arrow::read_parquet(here::here("data-raw/shark-incidents.parquet")) |> 
+  dplyr::mutate(victim_injury = ifelse(victim_injury == "fatal", "red", "#98f5ff")) |> 
+  leaflet::leaflet() |> 
+  leaflet::addTiles() |> 
+  leaflet::addCircleMarkers(
+    lat = ~latitude,
+    lng = ~longitude,
+    fillColor = ~victim_injury,
+    stroke = FALSE
+  )
+```

@@ -1,0 +1,27 @@
+section.exercise {
+  margin-top: 2rem;
+  background-color: #eeffee;
+  padding: 1rem;
+}
+
+h2.exercise,
+h3.exercise {
+  margin-top: 0;
+  border: none;
+}
+
+section.exercise > *:last-child,
+section.exercise > *:last-child > *:last-child,
+section.exercise > *:last-child > *:last-child > *:last-child {
+  margin-bottom: 0;
+}
+
+.discuss {
+  background-color: #edf4fd;
+  margin-bottom: 1rem;
+  padding: 8px;
+}
+
+.discuss > p:last-of-type {
+  margin-bottom: 0;
+}
